@@ -10,7 +10,7 @@
  * - Media group coalescing
  */
 
-// @ts-ignore — grammy is an optional dependency, dynamically imported
+import { Bot } from "grammy";
 import { ChannelAdapter, type InboundMessage, type ReplyPayload } from "./base.js";
 import type { GatewayServer } from "../gateway/server.js";
 import type { ClankConfig } from "../config/index.js";
@@ -20,7 +20,7 @@ export class TelegramAdapter extends ChannelAdapter {
   readonly name = "Telegram";
   private gateway: GatewayServer | null = null;
   private config: ClankConfig | null = null;
-  private bot: unknown = null; // grammY Bot instance — loaded dynamically
+  private bot: Bot | null = null;
   private running = false;
 
   init(gateway: GatewayServer, config: ClankConfig): void {
@@ -36,23 +36,27 @@ export class TelegramAdapter extends ChannelAdapter {
     }
 
     try {
-      // Dynamic import — grammY is an optional dependency
-      const grammy = await import("grammy" as string) as { Bot: new (token: string) => any };
-      this.bot = new grammy.Bot(telegramConfig.botToken);
-
-      const bot = this.bot as any;
+      this.bot = new Bot(telegramConfig.botToken);
+      const bot = this.bot as Bot;
 
       // Handle text messages
-      bot.on("message:text", async (ctx: any) => {
+      bot.on("message:text", async (ctx) => {
         const msg = ctx.message;
         const chatId = msg.chat.id;
         const userId = msg.from?.id;
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
 
-        // Permission check
-        if (telegramConfig.allowFrom && userId) {
+        // Permission check — allowFrom can contain user IDs (numeric) or usernames (@name)
+        if (telegramConfig.allowFrom && telegramConfig.allowFrom.length > 0) {
+          const username = msg.from?.username ? `@${msg.from.username}` : "";
+          const userIdStr = String(userId || "");
           const allowed = telegramConfig.allowFrom.map(String);
-          if (!allowed.includes(String(userId))) return;
+          const isAllowed = allowed.some((a) =>
+            a === userIdStr ||
+            a.toLowerCase() === username.toLowerCase() ||
+            a.toLowerCase() === (msg.from?.username || "").toLowerCase()
+          );
+          if (!isAllowed) return;
         }
 
         // Mention check in groups
@@ -112,7 +116,7 @@ export class TelegramAdapter extends ChannelAdapter {
 
   async stop(): Promise<void> {
     if (this.bot && this.running) {
-      (this.bot as { stop: () => void }).stop();
+      (this.bot as Bot).stop();
       this.running = false;
     }
   }
@@ -195,11 +199,10 @@ export class TelegramAdapter extends ChannelAdapter {
     const chatId = parts[parts.length - 1];
     if (!chatId || !this.bot) return;
 
-    const bot = this.bot as any;
     if (payload.text) {
       const chunks = splitMessage(payload.text, 4000);
       for (const chunk of chunks) {
-        await bot.api.sendMessage(Number(chatId), chunk);
+        await (this.bot as Bot).api.sendMessage(Number(chatId), chunk);
       }
     }
   }
