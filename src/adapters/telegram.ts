@@ -106,9 +106,18 @@ export class TelegramAdapter extends ChannelAdapter {
         }
       });
 
-      await bot.start();
-      this.running = true;
-      console.log("  Telegram: connected");
+      // bot.start() is blocking (resolves when bot stops) — run it without await
+      bot.start({
+        onStart: () => {
+          this.running = true;
+          console.log("  Telegram: polling started");
+        },
+      }).catch((err: Error) => {
+        console.error(`  Telegram: polling error — ${err.message}`);
+        this.running = false;
+      });
+
+      console.log("  Telegram: connecting...");
     } catch (err) {
       console.error(`  Telegram: failed to start — ${err instanceof Error ? err.message : err}`);
     }
