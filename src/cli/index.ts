@@ -327,10 +327,10 @@ program
     if (Object.keys(channels).length === 0) console.log("    (none configured)");
   });
 
-// Default: if no subcommand, launch TUI (or direct chat if no gateway)
+// Default: if no subcommand, start the gateway (keeps Telegram/Discord alive)
 program.action(async () => {
-  const { runTui } = await import("./tui.js");
-  await runTui({});
+  const { gatewayStart } = await import("./gateway-cmd.js");
+  await gatewayStart({});
 });
 
 program.parse();
