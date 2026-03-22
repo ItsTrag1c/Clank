@@ -520,9 +520,9 @@ export class GatewayServer {
 
   /** Handle sendMessage — route to agent engine */
   private async handleSendMessage(client: ClientConnection, frame: RequestFrame): Promise<void> {
-    const text = frame.params?.text as string;
+    const text = (frame.params?.message || frame.params?.text) as string;
     if (!text) {
-      this.sendResponse(client, frame.id, false, undefined, "text is required");
+      this.sendResponse(client, frame.id, false, undefined, "message is required");
       return;
     }
 

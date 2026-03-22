@@ -33,6 +33,12 @@
     "type": "git",
     "url": "https://github.com/ItsTrag1c/Clank.git"
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },

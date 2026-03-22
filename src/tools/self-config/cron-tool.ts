@@ -7,7 +7,7 @@
 import { join } from "node:path";
 import { getConfigDir } from "../../config/index.js";
 import { CronScheduler } from "../../cron/index.js";
-import type { Tool, ValidationResult } from "../types.js";
+import type { Tool, ToolContext, ValidationResult } from "../types.js";
 
 export const cronTool: Tool = {
   definition: {
@@ -43,7 +43,7 @@ export const cronTool: Tool = {
     return { ok: true };
   },
 
-  async execute(args: Record<string, unknown>, ctx): Promise<string> {
+  async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
     const scheduler = new CronScheduler(join(getConfigDir(), "cron"));
     await scheduler.init();
 
