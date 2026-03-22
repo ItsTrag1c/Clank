@@ -4,7 +4,7 @@
 
 | Version | Status |
 |---------|--------|
-| 0.x (Gateway) | In development |
+| 1.x (Gateway) | Supported |
 
 Legacy versions (CLI v2.7.0, Desktop v2.6.1) are archived at [Clank-Legacy](https://github.com/ItsTrag1c/Clank-Legacy) and no longer receive updates.
 

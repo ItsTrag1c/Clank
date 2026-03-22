@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [0.1.0] — 2026-03-22
+## [1.0.0] — 2026-03-22
 
 Initial release — Clank Gateway foundation.
 
