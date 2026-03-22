@@ -1,5 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
-import { resolve, isAbsolute, join, relative } from "node:path";
+import { join } from "node:path";
+import { guardPath } from "./path-guard.js";
 import type { Tool, ToolContext, ValidationResult } from "./types.js";
 
 const IGNORE_DIRS = new Set([
@@ -34,11 +35,12 @@ export const globFilesTool: Tool = {
   },
 
   async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
-    const basePath = args.path
-      ? isAbsolute(args.path as string)
-        ? (args.path as string)
-        : resolve(ctx.projectRoot, args.path as string)
-      : ctx.projectRoot;
+    let basePath = ctx.projectRoot;
+    if (args.path) {
+      const guard = guardPath(args.path as string, ctx.projectRoot, { allowExternal: ctx.allowExternal });
+      if (!guard.ok) return guard.error;
+      basePath = guard.path;
+    }
 
     const pattern = args.pattern as string;
     const regex = globToRegex(pattern);

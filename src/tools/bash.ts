@@ -3,13 +3,35 @@ import { resolve, isAbsolute } from "node:path";
 import { platform } from "node:os";
 import type { Tool, ToolContext, ValidationResult } from "./types.js";
 
-/** Commands that are blocked for safety */
+/** Commands that are blocked for safety — defense in depth */
 const BLOCKED_PATTERNS = [
-  /rm\s+(-rf?|--recursive)\s+\/(?!\S)/i,  // rm -rf /
-  /\bformat\s+[a-z]:/i,                    // format C:
-  /\bmkfs\b/i,                              // mkfs
-  /\bdd\s+.*of=\/dev/i,                    // dd to device
-  /git\s+push\s+--force\s+(origin\s+)?(main|master)/i, // force push to main
+  // Recursive deletion of root/system dirs
+  /rm\s+.*-[a-z]*r[a-z]*f[a-z]*\s+\//i,
+  /rm\s+.*-[a-z]*f[a-z]*r[a-z]*\s+\//i,
+  /rm\s+.*--recursive.*\//i,
+  /rm\s+.*--force.*\//i,
+  /Remove-Item.*-Recurse/i,
+  /del\s+\/[sS].*[\\\/]/i,
+  /rd\s+\/[sS].*[\\\/]/i,
+  // Disk formatting
+  /\bformat\s+[a-z]:/i,
+  /\bmkfs\b/i,
+  /\bdd\s+.*of=\/dev/i,
+  /diskpart/i,
+  // Force push to main branches
+  /git\s+push\s+.*(-f|--force).*\b(main|master)\b/i,
+  /git\s+push\s+.*\b(main|master)\b.*(-f|--force)/i,
+  // Shell-in-shell execution (limits encoded payloads)
+  /\|\s*(bash|sh|cmd|powershell|pwsh)\b/i,
+  /base64\s+(-d|--decode).*\|\s*(bash|sh)/i,
+  // Direct system damage
+  /\bchmod\s+.*777\s+\//i,
+  /\bchown\s+.*\//i,
+  /\bshutdown\b/i,
+  /\breboot\b/i,
+  // Windows-specific
+  /powershell\s+.*-[eE]ncodedCommand/i,
+  /reg\s+(delete|add).*\\\\HKLM/i,
 ];
 
 const MAX_OUTPUT = 30 * 1024; // 30KB output cap

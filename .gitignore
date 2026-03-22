@@ -36,3 +36,15 @@ coverage/
 tmp/
 temp/
 .cache/
+
+# Clank config (may contain API keys)
+config.json5
+clank.json
+*.json5
+
+# Secrets & credentials
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.*

@@ -77,6 +77,13 @@ export class GatewayServer {
 
   /** Start the gateway server */
   async start(): Promise<void> {
+    // Ensure auth token exists — generate one if missing
+    if (this.config.gateway.auth.mode === "token" && !this.config.gateway.auth.token) {
+      const { randomBytes } = await import("node:crypto");
+      this.config.gateway.auth.token = randomBytes(16).toString("hex");
+      console.log(`  Generated auth token: ${this.config.gateway.auth.token.slice(0, 8)}...`);
+    }
+
     // Initialize subsystems
     await this.sessionStore.init();
     await this.memoryManager.init();
@@ -219,6 +226,14 @@ export class GatewayServer {
     }
 
     if (url === "/status") {
+      // Require token for status endpoint (contains session info)
+      const authHeader = req.headers.authorization;
+      const expectedToken = this.config.gateway.auth.token;
+      if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Unauthorized" }));
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         gateway: { port: this.config.gateway.port, bind: this.config.gateway.bind },
@@ -422,13 +437,13 @@ export class GatewayServer {
 
         // === Config ===
         case "config.get": {
+          const { redactConfig } = await import("../config/redact.js");
           const section = frame.params?.section as string;
           if (section) {
-            this.sendResponse(client, frame.id, true, (this.config as unknown as Record<string, unknown>)[section]);
+            const val = (this.config as unknown as Record<string, unknown>)[section];
+            this.sendResponse(client, frame.id, true, redactConfig(val));
           } else {
-            // Return config without sensitive fields
-            const safe = { ...this.config };
-            this.sendResponse(client, frame.id, true, safe);
+            this.sendResponse(client, frame.id, true, redactConfig(this.config));
           }
           break;
         }
@@ -438,11 +453,18 @@ export class GatewayServer {
           const cfg = await loadConfig();
           const key = frame.params?.key as string;
           const value = frame.params?.value;
+
+          // Protect against prototype pollution
+          const BLOCKED_KEYS = ["__proto__", "constructor", "prototype"];
           if (key && value !== undefined) {
             const keys = key.split(".");
+            if (keys.some((k) => BLOCKED_KEYS.includes(k))) {
+              this.sendResponse(client, frame.id, false, undefined, "Blocked: unsafe key");
+              break;
+            }
             let target: Record<string, unknown> = cfg as unknown as Record<string, unknown>;
             for (let i = 0; i < keys.length - 1; i++) {
-              if (!target[keys[i]]) target[keys[i]] = {};
+              if (!target[keys[i]] || typeof target[keys[i]] !== "object") target[keys[i]] = {};
               target = target[keys[i]] as Record<string, unknown>;
             }
             target[keys[keys.length - 1]] = value;
@@ -634,15 +656,40 @@ export class GatewayServer {
       listeners.push([engineEvent, listener]);
     }
 
-    // Confirmation events need special handling — we need to relay
-    // the resolve callback through the WebSocket protocol
+    // Confirmation events — respect the config autoApprove settings.
+    // For channels (Telegram/Discord), use the config. For WebSocket
+    // clients (TUI/Web), relay to the client for interactive approval.
     const confirmListener = (data: unknown) => {
       const { actions, resolve } = data as { actions: unknown[]; resolve: (v: boolean | "always") => void };
+      const action = (actions as Array<{ safetyLevel: string }>)[0];
+      const level = (action?.safetyLevel || "high") as "low" | "medium" | "high";
+
+      // Check autoApprove config
+      if (this.config.tools.autoApprove[level]) {
+        resolve(true);
+        return;
+      }
+
+      // For WebSocket clients, relay the confirmation request
       const confirmId = `confirm_${Date.now()}`;
       this.sendEvent(client, "confirm-needed", { id: confirmId, actions });
-      // TODO: Wire up resolve via incoming "resolve" frame from client
-      // For now, auto-approve (gateway mode trusts the config)
-      resolve(true);
+
+      // Default deny after 30s timeout for safety
+      const timeout = setTimeout(() => resolve(false), 30_000);
+
+      // Listen for resolve from client (one-shot)
+      const resolveHandler = (raw: Buffer | string) => {
+        const frame = parseFrame(raw.toString());
+        if (frame?.type === "req" && (frame as RequestFrame).method === "confirm.resolve") {
+          const params = (frame as RequestFrame).params as { id?: string; approved?: boolean | "always" };
+          if (params?.id === confirmId) {
+            clearTimeout(timeout);
+            client.ws.removeListener("message", resolveHandler);
+            resolve(params.approved ?? false);
+          }
+        }
+      };
+      client.ws.on("message", resolveHandler);
     };
     engine.on("confirm-needed", confirmListener);
     listeners.push(["confirm-needed", confirmListener]);

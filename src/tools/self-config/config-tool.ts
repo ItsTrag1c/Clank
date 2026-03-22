@@ -7,6 +7,7 @@
  */
 
 import { loadConfig, saveConfig, getConfigPath } from "../../config/index.js";
+import { redactConfig } from "../../config/redact.js";
 import type { Tool, ToolContext, ValidationResult } from "../types.js";
 
 export const configTool: Tool = {
@@ -52,7 +53,7 @@ export const configTool: Tool = {
     const config = await loadConfig();
 
     if (action === "read") {
-      return JSON.stringify(config, null, 2);
+      return JSON.stringify(redactConfig(config), null, 2);
     }
 
     const key = args.key as string;

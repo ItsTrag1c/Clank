@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { resolve, isAbsolute, join, relative } from "node:path";
+import { join, relative } from "node:path";
+import { guardPath } from "./path-guard.js";
 import type { Tool, ToolContext, ValidationResult } from "./types.js";
 
 /** Directories to skip during search */
@@ -44,11 +45,12 @@ export const searchFilesTool: Tool = {
   },
 
   async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
-    const searchPath = args.path
-      ? isAbsolute(args.path as string)
-        ? (args.path as string)
-        : resolve(ctx.projectRoot, args.path as string)
-      : ctx.projectRoot;
+    let searchPath = ctx.projectRoot;
+    if (args.path) {
+      const guard = guardPath(args.path as string, ctx.projectRoot, { allowExternal: ctx.allowExternal });
+      if (!guard.ok) return guard.error;
+      searchPath = guard.path;
+    }
 
     const maxResults = Number(args.max_results) || 50;
     const globFilter = args.glob as string | undefined;

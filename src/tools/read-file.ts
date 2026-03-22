@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
-import { resolve, isAbsolute } from "node:path";
 import type { Tool, ToolContext, ValidationResult } from "./types.js";
+import { guardPath } from "./path-guard.js";
 
 export const readFileTool: Tool = {
   definition: {
@@ -30,9 +30,9 @@ export const readFileTool: Tool = {
   },
 
   async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
-    const filePath = isAbsolute(args.path as string)
-      ? (args.path as string)
-      : resolve(ctx.projectRoot, args.path as string);
+    const guard = guardPath(args.path as string, ctx.projectRoot, { allowExternal: ctx.allowExternal });
+    if (!guard.ok) return guard.error;
+    const filePath = guard.path;
 
     try {
       const fileStats = await stat(filePath);

@@ -1,5 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
-import { resolve, isAbsolute, join } from "node:path";
+import { join } from "node:path";
+import { guardPath } from "./path-guard.js";
 import type { Tool, ToolContext, ValidationResult } from "./types.js";
 
 export const listDirectoryTool: Tool = {
@@ -22,11 +23,12 @@ export const listDirectoryTool: Tool = {
   },
 
   async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
-    const dirPath = args.path
-      ? isAbsolute(args.path as string)
-        ? (args.path as string)
-        : resolve(ctx.projectRoot, args.path as string)
-      : ctx.projectRoot;
+    let dirPath = ctx.projectRoot;
+    if (args.path) {
+      const guard = guardPath(args.path as string, ctx.projectRoot, { allowExternal: ctx.allowExternal });
+      if (!guard.ok) return guard.error;
+      dirPath = guard.path;
+    }
 
     try {
       const entries = await readdir(dirPath);

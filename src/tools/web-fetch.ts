@@ -27,7 +27,19 @@ export const webFetchTool: Tool = {
       return { ok: false, error: "url is required" };
     }
     try {
-      new URL(args.url as string);
+      const parsed = new URL(args.url as string);
+      // Block SSRF targets
+      if (parsed.protocol === "file:") return { ok: false, error: "file:// URLs are not allowed" };
+      const host = parsed.hostname.toLowerCase();
+      if (host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "0.0.0.0") {
+        return { ok: false, error: "localhost URLs are blocked (SSRF protection)" };
+      }
+      if (host === "169.254.169.254" || host === "metadata.google.internal") {
+        return { ok: false, error: "Cloud metadata endpoints are blocked" };
+      }
+      if (host.endsWith(".internal") || host.endsWith(".local")) {
+        return { ok: false, error: "Internal network hostnames are blocked" };
+      }
     } catch {
       return { ok: false, error: "Invalid URL" };
     }
