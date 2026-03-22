@@ -49,6 +49,12 @@ export async function gatewayStartForeground(opts: { port?: string }): Promise<v
     config.gateway.port = parseInt(opts.port, 10);
   }
 
+  // Singleton check — only one gateway at a time
+  if (await isGatewayRunning(config.gateway.port)) {
+    console.log(green(`  Gateway already running on port ${config.gateway.port}`));
+    return;
+  }
+
   // Write PID file
   await writeFile(pidFilePath(), String(process.pid), "utf-8");
 

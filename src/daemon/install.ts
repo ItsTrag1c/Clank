@@ -135,10 +135,17 @@ async function uninstallLaunchd(): Promise<void> {
 
 // --- Windows: Task Scheduler ---
 async function installTaskScheduler(): Promise<void> {
-  const clankPath = process.argv[0]; // Node path — we'll use the full command
+  // Use the clank global binary path
+  const { execSync: execSyncImport } = await import("node:child_process");
+  let clankBin = "clank";
   try {
+    clankBin = execSyncImport("where clank", { encoding: "utf-8" }).trim().split("\n")[0];
+  } catch {}
+
+  try {
+    // Use /rl limited (no admin needed) instead of /rl highest
     execSync(
-      `schtasks /create /tn "ClankGateway" /tr "node \\"${clankPath}\\" gateway start --foreground" /sc onlogon /rl highest /f`,
+      `schtasks /create /tn "ClankGateway" /tr "\\"${clankBin}\\" gateway start --foreground" /sc onlogon /rl limited /f`,
       { encoding: "utf-8" },
     );
     // Also start it now
