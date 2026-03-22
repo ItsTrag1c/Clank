@@ -7,3 +7,5 @@ export {
   ensureConfigDir,
   type ClankConfig,
 } from "./config.js";
+
+export { ConfigWatcher } from "./watcher.js";

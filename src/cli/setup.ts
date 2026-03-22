@@ -12,6 +12,10 @@
 
 import { createInterface } from "node:readline";
 import { randomBytes } from "node:crypto";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import {
   loadConfig,
   saveConfig,
@@ -101,46 +105,161 @@ export async function runSetup(opts: {
       console.log(dim("  Install Ollama (recommended) or configure a cloud provider."));
     }
 
-    // Step 3b: Cloud fallback (optional)
-    if (isAdvanced) {
-      console.log("");
-      const addCloud = await ask(rl, cyan("  Add a cloud provider as fallback? [y/N] "));
-      if (addCloud.toLowerCase() === "y") {
-        const key = await ask(rl, cyan("  Enter Anthropic API key: "));
-        if (key.trim()) {
-          config.models.providers.anthropic = { apiKey: key.trim() };
-          config.agents.defaults.model.fallbacks = ["anthropic/claude-sonnet-4-6"];
-          console.log(green("  Anthropic configured as fallback"));
+    // Step 3b: Cloud provider (optional fallback)
+    console.log("");
+    const addCloud = await ask(rl, cyan("  Add a cloud provider as fallback? [y/N] "));
+    if (addCloud.toLowerCase() === "y") {
+      console.log(dim("    1. Anthropic (Claude)"));
+      console.log(dim("    2. OpenAI (GPT)"));
+      console.log(dim("    3. Google (Gemini)"));
+      const provider = await ask(rl, cyan("    Which provider? [1]: "));
+
+      switch (provider || "1") {
+        case "1": {
+          const key = await ask(rl, cyan("    Anthropic API key: "));
+          if (key.trim()) {
+            config.models.providers.anthropic = { apiKey: key.trim() };
+            config.agents.defaults.model.fallbacks = ["anthropic/claude-sonnet-4-6"];
+            console.log(green("    Anthropic configured as fallback"));
+          }
+          break;
+        }
+        case "2": {
+          const key = await ask(rl, cyan("    OpenAI API key: "));
+          if (key.trim()) {
+            config.models.providers.openai = { apiKey: key.trim() };
+            config.agents.defaults.model.fallbacks = ["openai/gpt-4o"];
+            console.log(green("    OpenAI configured as fallback"));
+          }
+          break;
+        }
+        case "3": {
+          const key = await ask(rl, cyan("    Google AI API key: "));
+          if (key.trim()) {
+            config.models.providers.google = { apiKey: key.trim() };
+            config.agents.defaults.model.fallbacks = ["google/gemini-2.0-flash"];
+            console.log(green("    Google configured as fallback"));
+          }
+          break;
         }
       }
     }
 
     // Step 4: Gateway Configuration
+    console.log("");
+    console.log(dim("  Gateway settings:"));
     if (isAdvanced) {
-      console.log("");
-      console.log(dim("  Gateway settings:"));
-      const port = await ask(rl, cyan(`  Port [${config.gateway.port}]: `));
+      const port = await ask(rl, cyan(`    Port [${config.gateway.port}]: `));
       if (port.trim()) config.gateway.port = parseInt(port, 10);
     }
 
     // Generate auth token
     config.gateway.auth.token = randomBytes(16).toString("hex");
-    console.log(dim(`  Gateway token: ${config.gateway.auth.token.slice(0, 8)}...`));
+    console.log(dim(`    Port: ${config.gateway.port}`));
+    console.log(dim(`    Token: ${config.gateway.auth.token.slice(0, 8)}...`));
 
     // Step 5: Workspace Bootstrap
     console.log("");
     console.log(dim("  Creating workspace..."));
-    // Workspace templates are created by ensureConfigDir + first agent run
+    const { ensureWorkspaceFiles } = await import("../engine/system-prompt.js");
+    const templateDir = join(__dirname, "..", "workspace", "templates");
+    const wsDir = join(getConfigDir(), "workspace");
+    try {
+      await ensureWorkspaceFiles(wsDir, templateDir);
+    } catch {
+      // Templates may not be found in built version — that's ok
+    }
     console.log(green("  Workspace ready at " + getConfigDir()));
 
     // Step 6: Channel Setup
+    console.log("");
+    console.log("  Channel setup:");
+    console.log(dim("    Web UI and CLI are always available."));
+    console.log("");
+
+    const addTelegram = await ask(rl, cyan("  Connect Telegram bot? [y/N] "));
+    if (addTelegram.toLowerCase() === "y") {
+      console.log(dim("    1. Message @BotFather on Telegram"));
+      console.log(dim("    2. Send /newbot and follow prompts"));
+      console.log(dim("    3. Copy the bot token"));
+      const token = await ask(rl, cyan("    Bot token: "));
+      if (token.trim()) {
+        config.channels.telegram = { enabled: true, botToken: token.trim() };
+        const userId = await ask(rl, cyan("    Your Telegram user ID (for allowlist): "));
+        if (userId.trim()) {
+          config.channels.telegram.allowFrom = [userId.trim()];
+        }
+        console.log(green("    Telegram configured"));
+      }
+    }
+
+    const addDiscord = await ask(rl, cyan("  Connect Discord bot? [y/N] "));
+    if (addDiscord.toLowerCase() === "y") {
+      console.log(dim("    1. Go to discord.com/developers/applications"));
+      console.log(dim("    2. Create app → Bot → Copy Token"));
+      console.log(dim("    3. Enable MESSAGE CONTENT intent"));
+      const token = await ask(rl, cyan("    Bot token: "));
+      if (token.trim()) {
+        config.channels.discord = { enabled: true, botToken: token.trim() };
+        console.log(green("    Discord configured"));
+      }
+    }
+
+    // Step 7: Web Search (Brave)
+    console.log("");
+    const addSearch = await ask(rl, cyan("  Set up web search (Brave Search)? [y/N] "));
+    if (addSearch.toLowerCase() === "y") {
+      console.log(dim("    Get a free API key at: https://brave.com/search/api/"));
+      const key = await ask(rl, cyan("    Brave Search API key: "));
+      if (key.trim()) {
+        config.tools.webSearch = { enabled: true, provider: "brave", apiKey: key.trim() };
+        console.log(green("    Brave Search configured"));
+      }
+    }
+
+    // Step 8: Voice (Advanced only)
     if (isAdvanced) {
       console.log("");
-      console.log("  Channels (configure through conversation after setup):");
-      console.log(dim("    Web UI:    enabled by default"));
-      console.log(dim("    CLI:       always available"));
-      console.log(dim("    Telegram:  tell your agent to set it up"));
-      console.log(dim("    Discord:   tell your agent to set it up"));
+      const addVoice = await ask(rl, cyan("  Set up voice (TTS/STT)? [y/N] "));
+      if (addVoice.toLowerCase() === "y") {
+        console.log(dim("    1. ElevenLabs (cloud)"));
+        console.log(dim("    2. Local (whisper.cpp + piper)"));
+        const voiceChoice = await ask(rl, cyan("    Choice [1]: "));
+        if (voiceChoice === "1" || !voiceChoice) {
+          const key = await ask(rl, cyan("    ElevenLabs API key: "));
+          if (key.trim()) {
+            console.log(green("    ElevenLabs configured"));
+          }
+        } else {
+          console.log(dim("    Local voice will use whisper.cpp (STT) + piper (TTS)"));
+          console.log(dim("    Make sure they're installed: whisper, piper"));
+        }
+      }
+    }
+
+    // Step 9: Agents (Advanced only)
+    if (isAdvanced) {
+      console.log("");
+      const addAgents = await ask(rl, cyan("  Define additional agents? [y/N] "));
+      if (addAgents.toLowerCase() === "y") {
+        let adding = true;
+        while (adding) {
+          const id = await ask(rl, cyan("    Agent ID: "));
+          if (!id.trim()) break;
+          const name = await ask(rl, cyan("    Name: "));
+          const model = await ask(rl, cyan("    Model [default]: "));
+
+          config.agents.list.push({
+            id: id.trim(),
+            name: name.trim() || id.trim(),
+            model: model.trim() ? { primary: model.trim() } : undefined,
+          });
+          console.log(green(`    Agent ${id.trim()} added`));
+
+          const more = await ask(rl, cyan("    Add another? [y/N] "));
+          adding = more.toLowerCase() === "y";
+        }
+      }
     }
 
     // Step 10: Daemon Install

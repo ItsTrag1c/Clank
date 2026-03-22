@@ -13,6 +13,7 @@ export type {
 export { OllamaProvider } from "./ollama.js";
 export { AnthropicProvider } from "./anthropic.js";
 export { OpenAIProvider } from "./openai.js";
+export { GoogleProvider } from "./google.js";
 export { PromptFallbackProvider } from "./prompt-fallback.js";
 
 export {

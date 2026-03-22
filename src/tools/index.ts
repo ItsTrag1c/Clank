@@ -11,6 +11,8 @@ export { searchFilesTool } from "./search-files.js";
 export { globFilesTool } from "./glob-files.js";
 export { bashTool } from "./bash.js";
 export { gitTool } from "./git.js";
+export { webSearchTool } from "./web-search.js";
+export { webFetchTool } from "./web-fetch.js";
 
 import { ToolRegistry } from "./registry.js";
 import { readFileTool } from "./read-file.js";
@@ -21,6 +23,8 @@ import { searchFilesTool } from "./search-files.js";
 import { globFilesTool } from "./glob-files.js";
 import { bashTool } from "./bash.js";
 import { gitTool } from "./git.js";
+import { webSearchTool } from "./web-search.js";
+import { webFetchTool } from "./web-fetch.js";
 import { registerSelfConfigTools } from "./self-config/index.js";
 
 // Self-config tools
@@ -39,6 +43,8 @@ export function createCoreRegistry(): ToolRegistry {
   registry.register(globFilesTool);
   registry.register(bashTool);
   registry.register(gitTool);
+  registry.register(webSearchTool);
+  registry.register(webFetchTool);
   return registry;
 }
 

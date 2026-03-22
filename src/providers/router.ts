@@ -15,6 +15,7 @@ import { type BaseProvider, type ResolvedProvider } from "./types.js";
 import { OllamaProvider } from "./ollama.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { OpenAIProvider } from "./openai.js";
+import { GoogleProvider } from "./google.js";
 
 export interface ProviderConfig {
   ollama?: {
@@ -30,6 +31,7 @@ export interface ProviderConfig {
   };
   google?: {
     apiKey: string;
+    baseUrl?: string;
   };
 }
 
@@ -91,6 +93,14 @@ export function createProvider(
         maxResponseTokens: opts?.maxResponseTokens,
       });
       return { provider: p, providerName: "openai", modelId, isLocal: false };
+    }
+
+    case "google": {
+      if (!config.google?.apiKey) {
+        throw new Error(`Google API key required for model ${modelId}`);
+      }
+      const p = new GoogleProvider({ apiKey: config.google.apiKey, model });
+      return { provider: p, providerName: "google", modelId, isLocal: false };
     }
 
     case "lmstudio":

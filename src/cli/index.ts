@@ -117,21 +117,24 @@ models
   .command("list")
   .description("List available models")
   .action(async () => {
-    console.log("Models list — not yet implemented");
+    const { modelsList } = await import("./models.js");
+    await modelsList();
   });
 
 models
   .command("add")
   .description("Add a model provider")
   .action(async () => {
-    console.log("Models add — not yet implemented");
+    const { modelsAdd } = await import("./models.js");
+    await modelsAdd();
   });
 
 models
   .command("test")
   .description("Test model connectivity")
   .action(async () => {
-    console.log("Models test — not yet implemented");
+    const { modelsTest } = await import("./models.js");
+    await modelsTest();
   });
 
 // clank agents — agent management
@@ -143,21 +146,24 @@ agents
   .command("list")
   .description("List configured agents")
   .action(async () => {
-    console.log("Agents list — not yet implemented");
+    const { agentsList } = await import("./agents.js");
+    await agentsList();
   });
 
 agents
   .command("add")
   .description("Add a new agent")
   .action(async () => {
-    console.log("Agents add — not yet implemented");
+    const { agentsAdd } = await import("./agents.js");
+    await agentsAdd();
   });
 
 agents
   .command("routing")
   .description("Show routing rules")
   .action(async () => {
-    console.log("Agents routing — not yet implemented");
+    const { agentsRouting } = await import("./agents.js");
+    await agentsRouting();
   });
 
 // clank daemon — system service management
