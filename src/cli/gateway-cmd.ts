@@ -1,16 +1,47 @@
 /**
  * Gateway CLI commands — start/stop/status/restart.
+ *
+ * The gateway runs as a background process. Telegram/Discord stay
+ * alive in the background while you use CLI/TUI/Web on top.
  */
 
 import { GatewayServer } from "../gateway/index.js";
-import { loadConfig, ensureConfigDir } from "../config/index.js";
+import { loadConfig, ensureConfigDir, getConfigDir } from "../config/index.js";
 import { DEFAULT_PORT } from "../gateway/protocol.js";
+import { fork, exec } from "node:child_process";
+import { writeFile, readFile, unlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
 
-export async function gatewayStart(opts: { port?: string; foreground?: boolean }): Promise<void> {
+/** Check if gateway is already running */
+export async function isGatewayRunning(port?: number): Promise<boolean> {
+  const config = await loadConfig();
+  const p = port || config.gateway.port || DEFAULT_PORT;
+  try {
+    const res = await fetch(`http://127.0.0.1:${p}/health`, { signal: AbortSignal.timeout(2000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Get the PID file path */
+function pidFilePath(): string {
+  return join(getConfigDir(), "gateway.pid");
+}
+
+/**
+ * Start the gateway in the foreground (blocking).
+ * Used by `clank gateway start --foreground` and the background process.
+ */
+export async function gatewayStartForeground(opts: { port?: string }): Promise<void> {
   await ensureConfigDir();
   const config = await loadConfig();
 
@@ -18,11 +49,14 @@ export async function gatewayStart(opts: { port?: string; foreground?: boolean }
     config.gateway.port = parseInt(opts.port, 10);
   }
 
+  // Write PID file
+  await writeFile(pidFilePath(), String(process.pid), "utf-8");
+
   const server = new GatewayServer(config);
 
-  // Handle shutdown signals
   const shutdown = async () => {
     console.log(dim("\nShutting down..."));
+    try { await unlink(pidFilePath()); } catch {}
     await server.stop();
     process.exit(0);
   };
@@ -34,24 +68,89 @@ export async function gatewayStart(opts: { port?: string; foreground?: boolean }
     console.log(green(`Gateway started on port ${config.gateway.port}`));
     console.log(dim("Press Ctrl+C to stop"));
   } catch (err) {
+    try { await unlink(pidFilePath()); } catch {}
     console.error(red(`Failed to start gateway: ${err instanceof Error ? err.message : err}`));
     process.exit(1);
   }
 }
 
-export async function gatewayStop(): Promise<void> {
-  // Send shutdown signal to running gateway via health endpoint
+/**
+ * Start the gateway as a background process (non-blocking).
+ * Returns once the gateway is confirmed running.
+ */
+export async function gatewayStartBackground(): Promise<boolean> {
   const config = await loadConfig();
   const port = config.gateway.port || DEFAULT_PORT;
 
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      console.log(dim("Gateway is running. Use Ctrl+C in the gateway terminal to stop it."));
-      console.log(dim("(Daemon stop will be implemented with the daemon system)"));
+  // Already running?
+  if (await isGatewayRunning(port)) {
+    return true;
+  }
+
+  console.log(dim("  Starting gateway in background..."));
+
+  // Fork a detached child process running `clank gateway start --foreground`
+  const entryPoint = join(dirname(__filename), "index.js");
+  const logFile = join(getConfigDir(), "logs", "gateway.log");
+
+  // Ensure logs dir exists
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(join(getConfigDir(), "logs"), { recursive: true });
+
+  const child = fork(entryPoint, ["gateway", "start", "--foreground"], {
+    detached: true,
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  child.unref();
+  child.disconnect();
+
+  // Wait for gateway to be ready (up to 10 seconds)
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (await isGatewayRunning(port)) {
+      console.log(green(`  Gateway running on port ${port}`));
+      return true;
     }
-  } catch {
-    console.log(dim("No gateway running."));
+  }
+
+  console.log(red("  Gateway failed to start"));
+  return false;
+}
+
+/** Public entry: start gateway (background by default, foreground with --foreground) */
+export async function gatewayStart(opts: { port?: string; foreground?: boolean }): Promise<void> {
+  if (opts.foreground) {
+    await gatewayStartForeground(opts);
+  } else {
+    const running = await gatewayStartBackground();
+    if (!running) {
+      process.exit(1);
+    }
+  }
+}
+
+export async function gatewayStop(): Promise<void> {
+  // Try to kill via PID file
+  const pidPath = pidFilePath();
+  if (existsSync(pidPath)) {
+    try {
+      const pid = parseInt(await readFile(pidPath, "utf-8"), 10);
+      process.kill(pid, "SIGTERM");
+      await unlink(pidPath);
+      console.log(green("Gateway stopped"));
+      return;
+    } catch {
+      // PID might be stale
+      try { await unlink(pidPath); } catch {}
+    }
+  }
+
+  // Check if it's running anyway
+  if (await isGatewayRunning()) {
+    console.log(dim("Gateway is running but no PID file found."));
+    console.log(dim("Kill it manually or restart the process."));
+  } else {
+    console.log(dim("Gateway is not running."));
   }
 }
 
@@ -67,6 +166,13 @@ export async function gatewayStatus(): Promise<void> {
       console.log(dim(`  Port: ${port}`));
       console.log(dim(`  Clients: ${(data.clients as unknown[])?.length || 0}`));
       console.log(dim(`  Sessions: ${(data.sessions as unknown[])?.length || 0}`));
+
+      // Show PID
+      const pidPath = pidFilePath();
+      if (existsSync(pidPath)) {
+        const pid = await readFile(pidPath, "utf-8");
+        console.log(dim(`  PID: ${pid.trim()}`));
+      }
     } else {
       console.log(red("Gateway returned error"));
     }

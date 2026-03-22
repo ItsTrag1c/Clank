@@ -80,7 +80,10 @@ gateway
   .command("restart")
   .description("Restart the gateway daemon")
   .action(async () => {
-    console.log("Restart: stop + start the gateway manually for now.");
+    const { gatewayStop, gatewayStartBackground } = await import("./gateway-cmd.js");
+    await gatewayStop();
+    await new Promise((r) => setTimeout(r, 1000));
+    await gatewayStartBackground();
   });
 
 // clank setup — onboarding wizard
@@ -327,10 +330,18 @@ program
     if (Object.keys(channels).length === 0) console.log("    (none configured)");
   });
 
-// Default: if no subcommand, start the gateway (keeps Telegram/Discord alive)
+// Default: if no subcommand, ensure gateway is running then launch TUI
 program.action(async () => {
-  const { gatewayStart } = await import("./gateway-cmd.js");
-  await gatewayStart({});
+  const { gatewayStartBackground, isGatewayRunning } = await import("./gateway-cmd.js");
+
+  // Ensure gateway is running in the background (Telegram/Discord stay alive)
+  if (!(await isGatewayRunning())) {
+    await gatewayStartBackground();
+  }
+
+  // Launch TUI connected to the gateway
+  const { runTui } = await import("./tui.js");
+  await runTui({});
 });
 
 program.parse();
