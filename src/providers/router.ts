@@ -33,6 +33,8 @@ export interface ProviderConfig {
     apiKey: string;
     baseUrl?: string;
   };
+  /** Local OpenAI-compatible servers (llamacpp, lmstudio, vllm, etc.) */
+  [key: string]: { baseUrl?: string; apiKey?: string } | undefined;
 }
 
 /**
@@ -114,10 +116,11 @@ export function createProvider(
         vllm: "http://127.0.0.1:8000",
         local: "http://127.0.0.1:8080",
       };
-      // Allow custom base URL from config
-      const customUrl = (config as Record<string, unknown>)[provider] as { baseUrl?: string } | undefined;
+      // Read base URL from config (e.g., config.llamacpp.baseUrl)
+      const providerCfg = config[provider];
+      const baseUrl = providerCfg?.baseUrl || defaultUrls[provider] || defaultUrls.local;
       const p = new OpenAIProvider({
-        baseUrl: customUrl?.baseUrl || defaultUrls[provider] || defaultUrls.local,
+        baseUrl,
         model,
         isLocal: true,
         maxResponseTokens: opts?.maxResponseTokens,

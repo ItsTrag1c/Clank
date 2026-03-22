@@ -96,9 +96,8 @@ export async function runSetup(opts: {
       const useDefault = await ask(rl, cyan(`  Use ${primary.provider}/${defaultModel} as default? [Y/n] `));
       if (useDefault.toLowerCase() !== "n") {
         config.agents.defaults.model.primary = `${primary.provider}/${defaultModel}`;
-        if (primary.provider === "ollama") {
-          config.models.providers.ollama = { baseUrl: primary.baseUrl };
-        }
+        // Save the detected server URL for ALL local providers
+        (config.models.providers as Record<string, unknown>)[primary.provider] = { baseUrl: primary.baseUrl };
       }
     } else {
       console.log(yellow("  No local model server detected."));
