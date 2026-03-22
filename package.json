@@ -1,0 +1,48 @@
+{
+  "name": "clank",
+  "version": "0.1.0",
+  "description": "Local-first AI agent gateway. Open-source alternative to OpenClaw, optimized for local models.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "clank": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "dev": "tsx src/cli/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "gateway",
+    "local-first",
+    "ollama",
+    "llm",
+    "multi-agent",
+    "telegram",
+    "discord",
+    "cli"
+  ],
+  "author": "ItsTrag1c",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ItsTrag1c/Clank.git"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
