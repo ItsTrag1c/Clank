@@ -227,6 +227,106 @@ program
     }
   });
 
+// clank pipeline — manage pipelines
+const pipeline = program
+  .command("pipeline")
+  .description("Manage agent pipelines");
+
+pipeline
+  .command("list")
+  .description("List pipeline definitions")
+  .action(async () => {
+    console.log("  No pipelines configured. Define pipelines in config or through conversation.");
+  });
+
+pipeline
+  .command("run <name>")
+  .description("Run a pipeline")
+  .option("--input <text>", "Input text for the pipeline")
+  .action(async (name, opts) => {
+    console.log(`  Running pipeline: ${name}...`);
+    console.log("  Pipeline CLI execution coming soon. Use the Web UI or conversation.");
+  });
+
+pipeline
+  .command("status <id>")
+  .description("Check pipeline execution status")
+  .action(async (id) => {
+    console.log(`  Pipeline ${id}: status check coming soon.`);
+  });
+
+// clank cron — manage cron jobs
+const cron = program
+  .command("cron")
+  .description("Manage scheduled jobs");
+
+cron
+  .command("list")
+  .description("List cron jobs")
+  .action(async () => {
+    const { join } = await import("node:path");
+    const { getConfigDir } = await import("../config/index.js");
+    const { CronScheduler } = await import("../cron/index.js");
+    const scheduler = new CronScheduler(join(getConfigDir(), "cron"));
+    await scheduler.init();
+    const jobs = scheduler.listJobs();
+    if (jobs.length === 0) { console.log("  No cron jobs."); return; }
+    for (const j of jobs) {
+      console.log(`  ${j.id.slice(0,8)} | ${j.name} | ${j.schedule} | ${j.enabled ? "enabled" : "disabled"} | agent: ${j.agentId}`);
+    }
+  });
+
+cron
+  .command("add")
+  .description("Add a cron job")
+  .requiredOption("--schedule <expr>", "Schedule (e.g., '1h', '30m', 'daily')")
+  .requiredOption("--prompt <text>", "What the agent should do")
+  .option("--name <name>", "Job name")
+  .option("--agent <id>", "Agent ID", "default")
+  .action(async (opts) => {
+    const { join } = await import("node:path");
+    const { getConfigDir } = await import("../config/index.js");
+    const { CronScheduler } = await import("../cron/index.js");
+    const scheduler = new CronScheduler(join(getConfigDir(), "cron"));
+    await scheduler.init();
+    const job = await scheduler.addJob({
+      name: opts.name || "CLI Job",
+      schedule: opts.schedule,
+      agentId: opts.agent,
+      prompt: opts.prompt,
+    });
+    console.log(`  Job created: ${job.id.slice(0,8)} — "${job.name}" every ${job.schedule}`);
+  });
+
+cron
+  .command("remove <id>")
+  .description("Remove a cron job")
+  .action(async (id) => {
+    const { join } = await import("node:path");
+    const { getConfigDir } = await import("../config/index.js");
+    const { CronScheduler } = await import("../cron/index.js");
+    const scheduler = new CronScheduler(join(getConfigDir(), "cron"));
+    await scheduler.init();
+    const removed = await scheduler.removeJob(id);
+    console.log(removed ? `  Job ${id.slice(0,8)} removed` : `  Job not found`);
+  });
+
+// clank channels — channel status
+program
+  .command("channels")
+  .description("Show channel adapter status")
+  .action(async () => {
+    const { loadConfig } = await import("../config/index.js");
+    const config = await loadConfig();
+    const channels = config.channels || {};
+    console.log("  Channels:");
+    for (const [name, cfg] of Object.entries(channels)) {
+      const c = cfg as Record<string, unknown>;
+      console.log(`    ${name}: ${c.enabled ? "\x1b[32menabled\x1b[0m" : "\x1b[2mdisabled\x1b[0m"}`);
+    }
+    if (Object.keys(channels).length === 0) console.log("    (none configured)");
+  });
+
 // Default: if no subcommand, launch TUI (or direct chat if no gateway)
 program.action(async () => {
   const { runTui } = await import("./tui.js");
