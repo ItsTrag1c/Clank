@@ -38,10 +38,12 @@
   },
   "dependencies": {
     "commander": "^14.0.3",
-    "json5": "^2.2.3"
+    "json5": "^2.2.3",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/ws": "^8.18.1",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

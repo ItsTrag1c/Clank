@@ -53,31 +53,34 @@ const gateway = program
 gateway
   .command("start")
   .description("Start the gateway daemon")
-  .option("-p, --port <port>", "Port to listen on", "18789")
+  .option("-p, --port <port>", "Port to listen on")
   .option("--foreground", "Run in foreground (don't daemonize)")
   .action(async (opts) => {
-    console.log("Gateway start — not yet implemented");
+    const { gatewayStart } = await import("./gateway-cmd.js");
+    await gatewayStart(opts);
   });
 
 gateway
   .command("stop")
   .description("Stop the gateway daemon")
   .action(async () => {
-    console.log("Gateway stop — not yet implemented");
+    const { gatewayStop } = await import("./gateway-cmd.js");
+    await gatewayStop();
   });
 
 gateway
   .command("status")
   .description("Show gateway status")
   .action(async () => {
-    console.log("Gateway status — not yet implemented");
+    const { gatewayStatus } = await import("./gateway-cmd.js");
+    await gatewayStatus();
   });
 
 gateway
   .command("restart")
   .description("Restart the gateway daemon")
   .action(async () => {
-    console.log("Gateway restart — not yet implemented");
+    console.log("Restart: stop + start the gateway manually for now.");
   });
 
 // clank setup — onboarding wizard
