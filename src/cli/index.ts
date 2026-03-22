@@ -41,7 +41,8 @@ program
   .option("--session <id>", "Resume a specific session")
   .option("--direct", "Force direct mode (no gateway)")
   .action(async (opts) => {
-    console.log("Chat command — not yet implemented");
+    const { runChat } = await import("./chat.js");
+    await runChat(opts);
   });
 
 // clank gateway — manage the gateway daemon
@@ -182,7 +183,8 @@ daemon
 
 // Default: if no subcommand, launch chat
 program.action(async () => {
-  console.log("Clank — launching chat (not yet implemented)");
+  const { runChat } = await import("./chat.js");
+  await runChat({});
 });
 
 program.parse();
