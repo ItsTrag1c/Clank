@@ -167,21 +167,24 @@ daemon
   .command("install")
   .description("Install Clank as a system service")
   .action(async () => {
-    console.log("Daemon install — not yet implemented");
+    const { installDaemon } = await import("../daemon/index.js");
+    await installDaemon();
   });
 
 daemon
   .command("uninstall")
   .description("Remove the system service")
   .action(async () => {
-    console.log("Daemon uninstall — not yet implemented");
+    const { uninstallDaemon } = await import("../daemon/index.js");
+    await uninstallDaemon();
   });
 
 daemon
   .command("status")
   .description("Show system service status")
   .action(async () => {
-    console.log("Daemon status — not yet implemented");
+    const { daemonStatus } = await import("../daemon/index.js");
+    await daemonStatus();
   });
 
 // Default: if no subcommand, launch chat
