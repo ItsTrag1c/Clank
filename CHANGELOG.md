@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.4.0] — 2026-03-23
+
+### Added
+- **Telegram streaming** — responses edit in real-time as tokens arrive (800ms interval, respects rate limits)
+- **Telegram image handling** — send photos to the bot, routed to agent with image URL
+- **Telegram document handling** — send files to the bot, saved to temp with sanitized filenames, agent can read them
+- **File share tool** — `share_file` lets the agent send workspace files through channels (workspace containment enforced)
+- **Per-agent voice** — each agent can have its own ElevenLabs voice ID in config
+- **Compact prompt mode** — `compactPrompt: true` strips workspace files for small model context optimization
+- **Thinking control** — `thinking: "off"` suppresses extended reasoning for faster responses
+- **Auto-memory persistence** — "remember X", preference statements, and corrections auto-saved to MEMORY.md
+- **Web UI session history** — loads last 50 messages on connect and session switch
+- **Rate limiting** — 20 messages per minute per session, prevents model flooding
+
+### Improved
+- **Model retry** — one retry with 2s backoff on transient connection failures
+- **Session resume compaction** — auto-compacts on load if over context budget
+- **Memory persistence instruction** — system prompt now encourages the agent to save learnings
+
+### Security
+- Telegram document uploads: filename sanitized (path traversal protection), 10MB size limit
+- File share tool: workspace containment via guardPath
+- Rate limiting prevents denial-of-service via message flooding
+- Per-agent voice IDs read from config only (not from user input)
+
+---
+
 ## [1.3.1] — 2026-03-23
 
 ### Fixed
