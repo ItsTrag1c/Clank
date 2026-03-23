@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.1] — 2026-03-23
+
+### Fixed
+- **STT not working** — local whisper.cpp was selected by default but not installed. Added Groq as the recommended free STT provider (whisper-large-v3-turbo).
+- **STT provider priority:** Groq (free, fast) → OpenAI Whisper → local whisper.cpp
+- **Setup wizard:** STT now offers Groq as option 1 (recommended), OpenAI as option 2, local as option 3
+
+---
+
 ## [1.3.0] — 2026-03-23
 
 ### Added

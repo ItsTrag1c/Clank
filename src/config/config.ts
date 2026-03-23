@@ -97,8 +97,8 @@ export interface ClankConfig {
     };
     whisper?: {
       enabled: boolean;
-      provider: "local" | "openai"; // local = whisper.cpp, openai = Whisper API
-      apiKey?: string; // only for openai provider
+      provider: "groq" | "openai" | "local"; // groq = free, openai = paid, local = whisper.cpp
+      apiKey?: string; // for groq or openai
       model?: string;
     };
     imageGen?: {

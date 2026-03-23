@@ -237,27 +237,35 @@ export async function runSetup(opts: {
       }
     }
 
-    const addWhisper = await ask(rl, cyan("  Set up speech-to-text (Whisper)? [y/N] "));
+    const addWhisper = await ask(rl, cyan("  Set up speech-to-text (voice messages)? [y/N] "));
     if (addWhisper.toLowerCase() === "y") {
-      console.log(dim("    1. OpenAI Whisper API (cloud, uses OpenAI key)"));
-      console.log(dim("    2. Local whisper.cpp (requires whisper installed)"));
+      console.log(dim("    1. Groq (recommended — free, fast)"));
+      console.log(dim("    2. OpenAI Whisper API (paid, uses OpenAI key)"));
+      console.log(dim("    3. Local whisper.cpp (requires manual install)"));
       const whisperChoice = await ask(rl, cyan("    Choice [1]: "));
-      if (whisperChoice === "2") {
+      if (whisperChoice === "3") {
         config.integrations.whisper = { enabled: true, provider: "local" };
         console.log(green("    Local whisper.cpp configured"));
         console.log(dim("    Make sure whisper is installed and in PATH"));
-      } else {
-        // OpenAI Whisper — can reuse existing OpenAI key or add one
+      } else if (whisperChoice === "2") {
         const existingKey = config.models.providers.openai?.apiKey;
         if (existingKey) {
           config.integrations.whisper = { enabled: true, provider: "openai", apiKey: existingKey };
           console.log(green("    Whisper configured (using existing OpenAI key)"));
         } else {
-          const key = await ask(rl, cyan("    OpenAI API key for Whisper: "));
+          const key = await ask(rl, cyan("    OpenAI API key: "));
           if (key.trim()) {
             config.integrations.whisper = { enabled: true, provider: "openai", apiKey: key.trim() };
             console.log(green("    Whisper configured"));
           }
+        }
+      } else {
+        // Groq (default — free)
+        console.log(dim("    Get a free API key at: https://console.groq.com/keys"));
+        const key = await ask(rl, cyan("    Groq API key: "));
+        if (key.trim()) {
+          config.integrations.whisper = { enabled: true, provider: "groq" as any, apiKey: key.trim() };
+          console.log(green("    Groq Whisper configured (free, fast)"));
         }
       }
     }

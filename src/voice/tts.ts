@@ -1,11 +1,10 @@
 /**
  * Voice system — TTS and STT powered by integrations config.
  *
- * TTS: ElevenLabs (cloud) or piper (local)
- * STT: OpenAI Whisper API (cloud) or whisper.cpp (local)
+ * TTS: ElevenLabs (cloud)
+ * STT: Groq (free), OpenAI Whisper API (cloud), or whisper.cpp (local)
  *
- * The agent uses these through tools — it can generate speech
- * from text and transcribe audio from voice messages.
+ * Groq is the default STT — free tier, fast, supports whisper-large-v3.
  */
 
 import type { ClankConfig } from "../config/index.js";
@@ -30,17 +29,15 @@ export class TTSEngine {
     this.config = config;
   }
 
-  /** Check if TTS is available */
   isAvailable(): boolean {
     return !!(this.config.integrations.elevenlabs?.enabled && this.config.integrations.elevenlabs?.apiKey);
   }
 
-  /** Convert text to speech */
   async synthesize(text: string, opts?: { voiceId?: string }): Promise<TTSResult | null> {
     const elevenlabs = this.config.integrations.elevenlabs;
     if (!elevenlabs?.enabled || !elevenlabs.apiKey) return null;
 
-    const voiceId = opts?.voiceId || elevenlabs.voiceId || "JBFqnCBsd6RMkjVDRZzb"; // Default: George
+    const voiceId = opts?.voiceId || elevenlabs.voiceId || "JBFqnCBsd6RMkjVDRZzb";
     const model = elevenlabs.model || "eleven_multilingual_v2";
 
     try {
@@ -50,44 +47,36 @@ export class TTSEngine {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "xi-api-key": elevenlabs.apiKey,
+            "xi-api-key": elevenlabs.apiKey as string,
           },
           body: JSON.stringify({
             text,
             model_id: model,
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
           }),
         },
       );
 
       if (!res.ok) {
-        const err = await res.text().catch(() => "");
-        console.error(`ElevenLabs TTS error ${res.status}: ${err}`);
+        console.error(`ElevenLabs TTS error ${res.status}`);
         return null;
       }
 
       const arrayBuffer = await res.arrayBuffer();
-      return {
-        audioBuffer: Buffer.from(arrayBuffer),
-        format: "mp3",
-      };
+      return { audioBuffer: Buffer.from(arrayBuffer), format: "mp3" };
     } catch (err) {
       console.error(`TTS error: ${err instanceof Error ? err.message : err}`);
       return null;
     }
   }
 
-  /** List available voices from ElevenLabs */
   async listVoices(): Promise<Array<{ id: string; name: string }>> {
     const elevenlabs = this.config.integrations.elevenlabs;
     if (!elevenlabs?.enabled || !elevenlabs.apiKey) return [];
 
     try {
       const res = await fetch("https://api.elevenlabs.io/v1/voices", {
-        headers: { "xi-api-key": elevenlabs.apiKey },
+        headers: { "xi-api-key": elevenlabs.apiKey as string },
       });
       if (!res.ok) return [];
       const data = await res.json() as { voices?: Array<{ voice_id: string; name: string }> };
@@ -100,6 +89,11 @@ export class TTSEngine {
 
 /**
  * Speech-to-Text engine.
+ *
+ * Priority order:
+ * 1. Groq (free, fast) — if groq API key configured
+ * 2. OpenAI Whisper API — if OpenAI key configured
+ * 3. Local whisper.cpp — if installed
  */
 export class STTEngine {
   private config: ClankConfig;
@@ -108,51 +102,74 @@ export class STTEngine {
     this.config = config;
   }
 
-  /** Check if STT is available */
   isAvailable(): boolean {
     const whisper = this.config.integrations.whisper;
     if (whisper?.enabled) {
+      if (whisper.provider === "groq" && whisper.apiKey) return true;
       if (whisper.provider === "openai" && whisper.apiKey) return true;
       if (whisper.provider === "local") return true;
     }
-    // Fall back to OpenAI key from model providers
+    // Fall back to any available key
     if (this.config.models.providers.openai?.apiKey) return true;
+    if ((this.config.integrations as Record<string, any>).groq?.apiKey) return true;
     return false;
   }
 
-  /** Transcribe audio to text */
   async transcribe(audioBuffer: Buffer, format = "ogg"): Promise<STTResult | null> {
     const whisper = this.config.integrations.whisper;
 
-    // Try OpenAI Whisper API
-    const apiKey = whisper?.apiKey || this.config.models.providers.openai?.apiKey;
-    if (apiKey && whisper?.provider !== "local") {
-      return this.transcribeOpenAI(audioBuffer, format, apiKey);
+    // Priority 1: Groq (free, fast)
+    const groqKey = (whisper?.provider === "groq" && whisper?.apiKey)
+      ? whisper.apiKey as string
+      : (this.config.integrations as Record<string, any>).groq?.apiKey as string | undefined;
+
+    if (groqKey) {
+      const result = await this.transcribeAPI(audioBuffer, format, groqKey, "https://api.groq.com/openai/v1/audio/transcriptions", "whisper-large-v3-turbo");
+      if (result) return result;
     }
 
-    // Try local whisper.cpp
-    return this.transcribeLocal(audioBuffer, format);
+    // Priority 2: OpenAI Whisper API
+    const openaiKey = (whisper?.provider === "openai" && whisper?.apiKey)
+      ? whisper.apiKey as string
+      : this.config.models.providers.openai?.apiKey;
+
+    if (openaiKey) {
+      const result = await this.transcribeAPI(audioBuffer, format, openaiKey, "https://api.openai.com/v1/audio/transcriptions", "whisper-1");
+      if (result) return result;
+    }
+
+    // Priority 3: Local whisper.cpp
+    if (whisper?.provider === "local") {
+      return this.transcribeLocal(audioBuffer, format);
+    }
+
+    return null;
   }
 
-  /** Transcribe via OpenAI Whisper API */
-  private async transcribeOpenAI(audioBuffer: Buffer, format: string, apiKey: string): Promise<STTResult | null> {
+  /** Transcribe via OpenAI-compatible API (works for both OpenAI and Groq) */
+  private async transcribeAPI(audioBuffer: Buffer, format: string, apiKey: string, endpoint: string, model: string): Promise<STTResult | null> {
     try {
-      // Build multipart form data
       const blob = new Blob([new Uint8Array(audioBuffer)], { type: `audio/${format}` });
       const formData = new FormData();
       formData.append("file", blob, `audio.${format}`);
-      formData.append("model", "whisper-1");
+      formData.append("model", model);
 
-      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}` },
         body: formData,
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error(`STT API error ${res.status}: ${errText.slice(0, 200)}`);
+        return null;
+      }
+
       const data = await res.json() as { text?: string; language?: string };
       return data.text ? { text: data.text, language: data.language } : null;
-    } catch {
+    } catch (err) {
+      console.error(`STT error: ${err instanceof Error ? err.message : err}`);
       return null;
     }
   }
