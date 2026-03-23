@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.5.8] — 2026-03-23
+
+### Added
+- **Collapsible thinking blocks** — model thinking/reasoning is now displayed in a separate clickable block above the response instead of being streamed into the message text. Click the "Thought" toggle to expand/collapse. Shows "Thinking..." while streaming, "Thought" when complete
+
+### Fixed
+- **Thinking events were disconnected** — the full thinking pipeline (provider → agent → gateway → frontend) was broken at 3 points: provider yielded thinking as text for local models, agent only emitted a one-shot start event without content, and gateway didn't forward thinking events to clients. All 3 fixed
+- **Empty responses from thinking-only models** — when a model puts all output in `reasoning_content` with empty `content` (Qwen3.5), the thinking text is now used as the response instead of showing a blank message
+
+---
+
 ## [1.5.7] — 2026-03-23
 
 ### Fixed

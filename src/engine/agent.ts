@@ -211,6 +211,7 @@ export class AgentEngine extends EventEmitter {
 
         // Stream from the provider (with retry on transient failures)
         let iterationText = "";
+        let thinkingText = "";
         const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
         let promptTokens = 0;
         let outputTokens = 0;
@@ -222,6 +223,7 @@ export class AgentEngine extends EventEmitter {
           // Reset per-attempt state so retries start clean
           if (attempt > 0) {
             iterationText = "";
+            thinkingText = "";
             toolCalls.length = 0;
             promptTokens = 0;
             outputTokens = 0;
@@ -243,8 +245,13 @@ export class AgentEngine extends EventEmitter {
               break;
 
             case "thinking":
-              this.emit("thinking-start");
-              // Thinking content not added to visible response
+              // Emit thinking content per-chunk so frontends can display it
+              // in a separate collapsible block. Also accumulate it — some
+              // local models (Qwen3.5) put ALL output in reasoning_content
+              // with empty content, so we may need to use thinking as the
+              // response if iterationText ends up empty.
+              thinkingText += event.content;
+              this.emit("thinking", { content: event.content });
               break;
 
             case "tool_call":
@@ -312,8 +319,17 @@ export class AgentEngine extends EventEmitter {
           contextPercent: Math.round(this.contextEngine.utilizationPercent()),
         });
 
-        // If no tool calls, we're done — this is the final response
+        // If no tool calls, we're done — this is the final response.
+        // Some local thinking models (Qwen3.5) put ALL output in
+        // reasoning_content with empty content. If iterationText is empty
+        // but we got thinking, use thinking as the response so the user
+        // isn't left with a blank message.
         if (toolCalls.length === 0) {
+          if (!iterationText && thinkingText) {
+            iterationText = thinkingText;
+            // Emit as tokens so frontends display it as the response
+            this.emit("token", { content: iterationText });
+          }
           fullResponse = iterationText;
           this.contextEngine.ingest({ role: "assistant", content: iterationText });
           this.emit("response-end", { text: iterationText });

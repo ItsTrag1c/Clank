@@ -317,7 +317,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.5.7",
+        version: "1.5.8",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -453,7 +453,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.5.7",
+      version: "1.5.8",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -774,6 +774,7 @@ export class GatewayServer {
   private wireEngineEvents(engine: AgentEngine, client: ClientConnection): () => void {
     const eventMap: Record<string, string> = {
       "token": "token",
+      "thinking": "thinking",
       "response-start": "response-start",
       "response-end": "response-end",
       "tool-start": "tool-start",
