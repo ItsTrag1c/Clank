@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - **Telegram streaming stutter** — fixed race condition where multiple partial messages were sent instead of editing a single message; added synchronous guard flag to prevent duplicate `sendMessage` calls while the initial message promise is in-flight
+- **Gateway killed by `clear` on Windows** — replaced `fork()` with `spawn()` + `windowsHide` for background gateway process; `fork` kept an IPC channel tied to the parent console, so clearing PowerShell killed the gateway
+- **`clank update` fails on Windows** — added `--force` to the npm install command to overwrite locked shim files (`clank.ps1`, `clank.cmd`)
 
 ---
 

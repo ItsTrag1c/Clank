@@ -51,15 +51,16 @@ export async function runChat(opts: {
     if (!gatewayRunning) {
       // Start gateway in background
       console.log(dim("Starting gateway..."));
-      const { fork } = await import("node:child_process");
+      const { spawn } = await import("node:child_process");
       const { fileURLToPath } = await import("node:url");
       const { dirname, join } = await import("node:path");
       const __filename = fileURLToPath(import.meta.url);
       const entryPoint = join(dirname(__filename), "index.js");
 
-      const child = fork(entryPoint, ["gateway", "start", "--foreground"], {
+      const child = spawn(process.execPath, [entryPoint, "gateway", "start", "--foreground"], {
         detached: true,
         stdio: "ignore",
+        windowsHide: true,
       });
       child.unref();
 

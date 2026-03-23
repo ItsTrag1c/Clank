@@ -8,7 +8,7 @@
 import { GatewayServer } from "../gateway/index.js";
 import { loadConfig, ensureConfigDir, getConfigDir } from "../config/index.js";
 import { DEFAULT_PORT } from "../gateway/protocol.js";
-import { fork, exec } from "node:child_process";
+import { exec } from "node:child_process";
 import { writeFile, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -95,20 +95,26 @@ export async function gatewayStartBackground(): Promise<boolean> {
 
   console.log(dim("  Starting gateway in background..."));
 
-  // Fork a detached child process running `clank gateway start --foreground`
+  // Spawn a fully detached child process running `clank gateway start --foreground`
   const entryPoint = join(dirname(__filename), "index.js");
-  const logFile = join(getConfigDir(), "logs", "gateway.log");
 
   // Ensure logs dir exists
   const { mkdir } = await import("node:fs/promises");
+  const { spawn } = await import("node:child_process");
+  const { openSync } = await import("node:fs");
   await mkdir(join(getConfigDir(), "logs"), { recursive: true });
 
-  const child = fork(entryPoint, ["gateway", "start", "--foreground"], {
+  // Use spawn (not fork) — fork keeps an IPC channel that ties the child
+  // to the parent's console on Windows, so clearing PowerShell kills it.
+  // spawn with detached + windowsHide fully detaches from the console.
+  const logFile = join(getConfigDir(), "logs", "gateway.log");
+  const logFd = openSync(logFile, "a");
+  const child = spawn(process.execPath, [entryPoint, "gateway", "start", "--foreground"], {
     detached: true,
-    stdio: ["ignore", "ignore", "ignore", "ipc"],
+    stdio: ["ignore", logFd, logFd],
+    windowsHide: true,
   });
   child.unref();
-  child.disconnect();
 
   // Wait for gateway to be ready (up to 10 seconds)
   for (let i = 0; i < 20; i++) {
