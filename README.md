@@ -52,13 +52,30 @@ Clank is a personal AI gateway — **one daemon, many frontends**. It connects y
 
 ## Quick Start
 
+### npm (all platforms)
+
 ```bash
 npm install -g @tractorscorch/clank
 clank setup
 clank
 ```
 
+### macOS (standalone binary)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ItsTrag1c/Clank/main/install.sh | bash
+clank setup
+clank
+```
+
 That's it. Setup auto-detects your local models, configures the gateway, and gets you chatting in under 2 minutes. See the [full install guide](docs/INSTALL.md) for details.
+
+### Downloads
+
+| Platform | Download |
+|----------|----------|
+| **npm** (all platforms) | `npm install -g @tractorscorch/clank` |
+| **macOS** (Apple Silicon) | [Clank_1.4.1_macos](https://github.com/ItsTrag1c/Clank/releases/latest/download/Clank_1.4.1_macos) |
 
 ## Features
 

@@ -29,11 +29,29 @@ Clank also auto-detects LM Studio, llama.cpp, and vLLM if they're running.
 
 ## Install Clank
 
+### Option 1: npm (all platforms)
+
 ```bash
 npm install -g @tractorscorch/clank
 ```
 
-Verify the installation:
+### Option 2: macOS one-liner (standalone binary, no Node.js required)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ItsTrag1c/Clank/main/install.sh | bash
+```
+
+### Option 3: Manual download
+
+Download the latest binary from the [releases page](https://github.com/ItsTrag1c/Clank/releases/latest):
+
+| Platform | File |
+|----------|------|
+| macOS (Apple Silicon) | `Clank_<version>_macos` |
+
+Place the binary in your PATH (e.g. `/usr/local/bin/clank`) and `chmod +x` it.
+
+### Verify
 
 ```bash
 clank --version
