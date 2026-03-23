@@ -292,7 +292,7 @@
 
   function addMsg(role, text) {
     const d = document.createElement('div'); d.className = 'msg';
-    d.innerHTML = `<div class="meta ${role}">${role}</div><div class="body">${role === 'user' ? esc(text) : ''}</div>`;
+    d.innerHTML = `<div class="meta ${esc(role)}">${esc(role)}</div><div class="body">${role === 'user' ? esc(text) : ''}</div>`;
     document.getElementById('chat-messages').appendChild(d); scrollChat(); return d;
   }
   function scrollChat() { const c = document.getElementById('chat-messages'); c.scrollTop = c.scrollHeight; }
@@ -303,7 +303,7 @@
       const agents = await rpc('agent.list');
       const el = document.getElementById('agents-list');
       if (!agents?.length) { el.innerHTML = '<p style="color:var(--text-dim)">No custom agents. Using default agent.</p>'; return; }
-      el.innerHTML = agents.map(a => `<div class="list-item"><div class="info"><div class="name">${esc(a.name)}</div><div class="detail">${esc(a.model)}</div></div><span class="badge online">${a.status}</span></div>`).join('');
+      el.innerHTML = agents.map(a => `<div class="list-item"><div class="info"><div class="name">${esc(a.name)}</div><div class="detail">${esc(a.model)}</div></div><span class="badge online">${esc(a.status)}</span></div>`).join('');
     } catch {}
   }
 
@@ -343,7 +343,7 @@
       const jobs = await rpc('cron.list');
       const el = document.getElementById('cron-list');
       if (!jobs?.length) { el.innerHTML = '<p style="color:var(--text-dim)">No cron jobs. Create them through conversation or config.</p>'; return; }
-      el.innerHTML = jobs.map(j => `<div class="list-item"><div class="info"><div class="name">${esc(j.name)}</div><div class="detail">${esc(j.schedule)} · agent: ${esc(j.agentId)} · ${j.enabled ? 'enabled' : 'disabled'}</div></div><span class="badge">${j.lastStatus || 'pending'}</span></div>`).join('');
+      el.innerHTML = jobs.map(j => `<div class="list-item"><div class="info"><div class="name">${esc(j.name)}</div><div class="detail">${esc(j.schedule)} · agent: ${esc(j.agentId)} · ${j.enabled ? 'enabled' : 'disabled'}</div></div><span class="badge">${esc(j.lastStatus || 'pending')}</span></div>`).join('');
     } catch {}
   }
 

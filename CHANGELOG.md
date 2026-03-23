@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.5.4] — 2026-03-23
+
+### Fixed
+- **Streaming dies mid-answer with local models** — added per-chunk idle timeout (60s) that detects when the model hangs between chunks (GPU OOM, Ollama crash). Previously the only timeout was the 5-minute overall timer, which couldn't detect mid-stream stalls
+- **Incomplete responses treated as complete** — when a stream ends without the `[DONE]` marker (connection drop, model crash), the response is no longer silently accepted. The provider now throws an error so the agent retries instead of showing a half-finished answer
+- **Agent retry on stream failure** — the retry loop now resets partial state on retry and recognizes stream drops/empty responses as retryable errors, automatically attempting once more before giving up
+- **XSS in web dashboard** — 3 places where server data (`role`, `a.status`, `j.lastStatus`) was rendered as raw HTML without escaping (CodeQL CWE-79)
+- **Incomplete glob sanitization in search-files** — `.replace("*", "")` only stripped the first `*`; changed to `.replaceAll()` (CodeQL CWE-116)
+
+---
+
 ## [1.5.3] — 2026-03-23
 
 ### Fixed

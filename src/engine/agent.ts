@@ -217,6 +217,14 @@ export class AgentEngine extends EventEmitter {
         this.emit("response-start");
 
         for (let attempt = 0; attempt < 2; attempt++) {
+          // Reset per-attempt state so retries start clean
+          if (attempt > 0) {
+            iterationText = "";
+            toolCalls.length = 0;
+            promptTokens = 0;
+            outputTokens = 0;
+          }
+
           try {
             const streamIterator = activeProvider.stream(
               this.contextEngine.getMessages(),
@@ -257,16 +265,29 @@ export class AgentEngine extends EventEmitter {
             streamSuccess = true;
             break; // Success — exit retry loop
           } catch (streamErr) {
-            // Don't retry timeouts or aborts — the model is unresponsive, retrying wastes time
+            const errMsg = streamErr instanceof Error ? streamErr.message : "unknown";
+
+            // Don't retry timeouts or aborts — the model is unresponsive
             const isTimeout = streamErr instanceof Error && (
               streamErr.name === "TimeoutError" ||
               streamErr.name === "AbortError" ||
-              streamErr.message.includes("timed out")
+              errMsg.includes("timed out")
             );
-            if (attempt === 0 && !signal.aborted && !isTimeout) {
-              // First failure — retry once after brief pause
+
+            // Retryable errors: connection failures, stream drops, empty responses.
+            // These are transient — the model may recover on a second attempt.
+            const isRetryable = !isTimeout && !signal.aborted && (
+              errMsg.includes("connection dropped") ||
+              errMsg.includes("stopped responding") ||
+              errMsg.includes("empty response") ||
+              errMsg.includes("fetch failed") ||
+              errMsg.includes("ECONNREFUSED") ||
+              errMsg.includes("ECONNRESET")
+            );
+
+            if (attempt === 0 && (isRetryable || (!signal.aborted && !isTimeout))) {
               this.emit("error", {
-                message: `Model connection failed, retrying... (${streamErr instanceof Error ? streamErr.message : "unknown"})`,
+                message: `Model stream failed, retrying... (${errMsg})`,
                 recoverable: true,
               });
               await new Promise((r) => setTimeout(r, 2000));

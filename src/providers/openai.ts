@@ -165,8 +165,9 @@ export class OpenAIProvider extends BaseProvider {
       headers["Authorization"] = `Bearer ${this.apiKey}`;
     }
 
-    // Local models (llama.cpp, vLLM) need much longer timeouts — large
-    // quantized models can take minutes for prefill on big contexts
+    // Two-layer timeout:
+    // 1. Overall timeout (5min local, 90s cloud)
+    // 2. Per-chunk idle timeout (detects mid-stream hangs)
     const timeoutMs = this.isLocal ? 300_000 : 90_000;
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const effectiveSignal = signal
@@ -190,11 +191,26 @@ export class OpenAIProvider extends BaseProvider {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let receivedDone = false;
+    let lastFinishReason: string | null = null;
+    let hasContent = false;
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
+
+    // Per-chunk idle timeout — if the model stops sending data, abort early
+    // instead of waiting for the overall timeout. Local models get 60s
+    // (large quantized models are slower), cloud gets 30s.
+    const CHUNK_IDLE_TIMEOUT = this.isLocal ? 60_000 : 30_000;
 
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        const idleTimeout = new Promise<{ done: true; value: undefined }>((_, reject) =>
+          setTimeout(() => reject(new Error("Model stopped responding (no data received)")), CHUNK_IDLE_TIMEOUT),
+        );
+
+        const { done, value } = await Promise.race([
+          reader.read(),
+          idleTimeout,
+        ]);
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -207,6 +223,7 @@ export class OpenAIProvider extends BaseProvider {
 
           const data = trimmed.slice(6);
           if (data === "[DONE]") {
+            receivedDone = true;
             for (const tc of toolCalls.values()) {
               let parsedArgs: Record<string, unknown> = {};
               try {
@@ -232,12 +249,20 @@ export class OpenAIProvider extends BaseProvider {
                     function?: { name?: string; arguments?: string };
                   }>;
                 };
+                finish_reason?: string | null;
               }>;
               usage?: { prompt_tokens?: number; completion_tokens?: number };
             };
 
             const choice = chunk.choices?.[0];
+
+            // Track finish_reason to detect truncation vs normal completion
+            if (choice?.finish_reason) {
+              lastFinishReason = choice.finish_reason;
+            }
+
             if (choice?.delta?.reasoning_content) {
+              hasContent = true;
               if (this.isLocal) {
                 // Local thinking models (Qwen3.5, etc.) often put ALL output
                 // in reasoning_content with empty content. Treat reasoning as
@@ -248,10 +273,12 @@ export class OpenAIProvider extends BaseProvider {
               }
             }
             if (choice?.delta?.content) {
+              hasContent = true;
               yield { type: "text", content: choice.delta.content };
             }
 
             if (choice?.delta?.tool_calls) {
+              hasContent = true;
               for (const tc of choice.delta.tool_calls) {
                 const existing = toolCalls.get(tc.index);
                 if (existing) {
@@ -282,15 +309,28 @@ export class OpenAIProvider extends BaseProvider {
       reader.releaseLock();
     }
 
-    for (const tc of toolCalls.values()) {
-      let parsedArgs: Record<string, unknown> = {};
-      try {
-        parsedArgs = JSON.parse(tc.arguments) as Record<string, unknown>;
-      } catch {
-        parsedArgs = {};
+    // Stream ended without [DONE] — connection dropped or model crashed
+    if (!receivedDone && hasContent) {
+      for (const tc of toolCalls.values()) {
+        let parsedArgs: Record<string, unknown> = {};
+        try {
+          parsedArgs = JSON.parse(tc.arguments) as Record<string, unknown>;
+        } catch {
+          parsedArgs = {};
+        }
+        yield { type: "tool_call", id: tc.id, name: tc.name, arguments: parsedArgs };
       }
-      yield { type: "tool_call", id: tc.id, name: tc.name, arguments: parsedArgs };
+      throw new Error(
+        lastFinishReason === "length"
+          ? "Model response truncated (hit token limit)"
+          : "Model stream ended unexpectedly (connection dropped)",
+      );
     }
+
+    if (!receivedDone) {
+      throw new Error("Model returned empty response");
+    }
+
     yield { type: "done" };
   }
 

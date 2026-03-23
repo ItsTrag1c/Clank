@@ -90,7 +90,7 @@ export const searchFilesTool: Tool = {
         } else if (s.isFile() && s.size < 1024 * 1024) {
           // Skip files >1MB
           if (globFilter) {
-            const ext = globFilter.replace("*", "");
+            const ext = globFilter.replaceAll("*", "");
             if (!entry.endsWith(ext)) continue;
           }
 

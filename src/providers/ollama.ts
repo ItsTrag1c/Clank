@@ -204,9 +204,9 @@ export class OllamaProvider extends BaseProvider {
       body.max_tokens = this.maxResponseTokens;
     }
 
-    // Combine the caller's abort signal with a 5-minute timeout. Local models
-    // (especially large quantized ones like 35B) can take minutes for prefill
-    // on large contexts. This timeout covers the entire request lifecycle.
+    // Two-layer timeout:
+    // 1. Overall 5-minute timeout (covers prefill + full generation)
+    // 2. Per-chunk 60s idle timeout (detects mid-stream hangs)
     const timeoutSignal = AbortSignal.timeout(300_000);
     const effectiveSignal = signal
       ? AbortSignal.any([signal, timeoutSignal])
@@ -232,10 +232,30 @@ export class OllamaProvider extends BaseProvider {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let receivedDone = false;
+    let lastFinishReason: string | null = null;
+    let hasContent = false;
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
+
+    // Per-chunk idle timeout: if no data arrives for 60s, the model has hung.
+    // This catches mid-stream hangs that the overall timeout misses (e.g.,
+    // model used 4 min on prefill, leaving only 1 min — but hangs after 30s
+    // of streaming). The idle timer resets on every chunk received.
+    const CHUNK_IDLE_TIMEOUT = 60_000;
+
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        // Race the reader against an idle timeout — if the model stops
+        // sending data for 60s, abort instead of waiting for the 5min
+        // overall timeout to expire
+        const idleTimeout = new Promise<{ done: true; value: undefined }>((_, reject) =>
+          setTimeout(() => reject(new Error("Model stopped responding (no data for 60s)")), CHUNK_IDLE_TIMEOUT),
+        );
+
+        const { done, value } = await Promise.race([
+          reader.read(),
+          idleTimeout,
+        ]);
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -248,6 +268,7 @@ export class OllamaProvider extends BaseProvider {
 
           const data = trimmed.slice(6);
           if (data === "[DONE]") {
+            receivedDone = true;
             // Emit any accumulated tool calls
             for (const tc of toolCalls.values()) {
               let parsedArgs: Record<string, unknown> = {};
@@ -284,13 +305,20 @@ export class OllamaProvider extends BaseProvider {
             const choice = chunk.choices?.[0];
             if (!choice) continue;
 
+            // Track finish_reason to detect truncation vs normal completion
+            if (choice.finish_reason) {
+              lastFinishReason = choice.finish_reason;
+            }
+
             // Text content
             if (choice.delta?.content) {
+              hasContent = true;
               yield { type: "text", content: choice.delta.content };
             }
 
             // Tool calls (accumulated across chunks)
             if (choice.delta?.tool_calls) {
+              hasContent = true;
               for (const tc of choice.delta.tool_calls) {
                 const existing = toolCalls.get(tc.index);
                 if (existing) {
@@ -324,16 +352,33 @@ export class OllamaProvider extends BaseProvider {
       reader.releaseLock();
     }
 
-    // If we exit without [DONE], still emit pending tool calls and done
-    for (const tc of toolCalls.values()) {
-      let parsedArgs: Record<string, unknown> = {};
-      try {
-        parsedArgs = JSON.parse(tc.arguments) as Record<string, unknown>;
-      } catch {
-        parsedArgs = {};
+    // Stream ended without [DONE] marker — this means the connection
+    // dropped (Ollama crash, OOM, network issue). Emit what we have
+    // but signal the incomplete state so the agent can retry.
+    if (!receivedDone && hasContent) {
+      // Emit pending tool calls
+      for (const tc of toolCalls.values()) {
+        let parsedArgs: Record<string, unknown> = {};
+        try {
+          parsedArgs = JSON.parse(tc.arguments) as Record<string, unknown>;
+        } catch {
+          parsedArgs = {};
+        }
+        yield { type: "tool_call", id: tc.id, name: tc.name, arguments: parsedArgs };
       }
-      yield { type: "tool_call", id: tc.id, name: tc.name, arguments: parsedArgs };
+      // Signal incomplete stream — the response was cut off
+      throw new Error(
+        lastFinishReason === "length"
+          ? "Model response truncated (hit token limit)"
+          : "Model stream ended unexpectedly (connection dropped)",
+      );
     }
+
+    // No content and no [DONE] — model returned an empty response
+    if (!receivedDone) {
+      throw new Error("Model returned empty response");
+    }
+
     yield { type: "done" };
   }
 
