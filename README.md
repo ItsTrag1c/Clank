@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ItsTrag1c/Clank/releases/latest"><img src="https://img.shields.io/badge/version-1.4.1-blue.svg" alt="Version" /></a>
+  <a href="https://github.com/ItsTrag1c/Clank/releases/latest"><img src="https://img.shields.io/badge/version-1.4.2-blue.svg" alt="Version" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
   <a href="https://www.npmjs.com/package/@tractorscorch/clank"><img src="https://img.shields.io/npm/v/@tractorscorch/clank.svg" alt="npm" /></a>
   <a href="https://github.com/ItsTrag1c/Clank/stargazers"><img src="https://img.shields.io/github/stars/ItsTrag1c/Clank.svg" alt="Stars" /></a>

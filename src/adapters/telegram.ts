@@ -98,6 +98,7 @@ export class TelegramAdapter extends ChannelAdapter {
 
             // Streaming: send initial message then edit as tokens arrive
             let streamMsgId: number | null = null;
+            let sendingInitial = false; // Guard against duplicate initial sends
             let accumulated = "";
             let lastEditTime = 0;
             const EDIT_INTERVAL = 800; // ms between edits (Telegram rate limit)
@@ -114,8 +115,9 @@ export class TelegramAdapter extends ChannelAdapter {
                   accumulated += content;
                   const now = Date.now();
 
-                  // Send initial message on first tokens
-                  if (!streamMsgId && accumulated.length > 20) {
+                  // Send initial message on first tokens (only once)
+                  if (!streamMsgId && !sendingInitial && accumulated.length > 20) {
+                    sendingInitial = true;
                     bot.api.sendMessage(chatId, accumulated + " ▍").then((sent) => {
                       streamMsgId = sent.message_id;
                       lastEditTime = now;
