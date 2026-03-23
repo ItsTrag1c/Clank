@@ -261,7 +261,13 @@ export class GatewayServer {
     }
 
     try {
-      return await engine.sendMessage(text);
+      console.log(`  Streaming: sending message to engine (session: ${sessionKey})`);
+      const result = await engine.sendMessage(text);
+      console.log(`  Streaming: engine returned (${result?.length || 0} chars)`);
+      return result;
+    } catch (err) {
+      console.error(`  Streaming: engine error — ${err instanceof Error ? err.message : err}`);
+      throw err;
     } finally {
       for (const [event, fn] of listeners) {
         engine.removeListener(event, fn);
@@ -311,7 +317,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.4.9",
+        version: "1.5.0",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -447,7 +453,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.4.9",
+      version: "1.5.0",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,

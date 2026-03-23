@@ -179,10 +179,18 @@ export class OpenAIProvider extends BaseProvider {
     const decoder = new TextDecoder();
     let buffer = "";
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
+    // Per-chunk timeout: if no data arrives for 60s, the model is stuck
+    const CHUNK_TIMEOUT = 60_000;
 
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        // Race each read against a timeout — if the model stops sending
+        // data mid-stream (OOM, stuck, etc.), we detect it instead of hanging
+        const readPromise = reader.read();
+        const timeoutPromise = new Promise<{ done: true; value: undefined }>((_, reject) =>
+          setTimeout(() => reject(new Error("Model stopped responding (no data for 60s)")), CHUNK_TIMEOUT)
+        );
+        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });

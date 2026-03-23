@@ -94,6 +94,7 @@ export class TelegramAdapter extends ChannelAdapter {
           if (!this.gateway) return;
 
           try {
+            console.log(`  Telegram: processing message from ${userId} in ${chatId}`);
             await ctx.api.sendChatAction(chatId, "typing");
 
             // Streaming: send initial message then edit as tokens arrive
@@ -170,15 +171,19 @@ export class TelegramAdapter extends ChannelAdapter {
                 await ctx.api.sendMessage(chatId, chunk);
               }
             }
+            console.log(`  Telegram: response complete (${response?.length || 0} chars)`);
           } catch (err: unknown) {
             const errMsg = err instanceof Error ? err.message : String(err);
-            await ctx.api.sendMessage(chatId, `Error: ${errMsg.slice(0, 200)}`);
+            console.error(`  Telegram: message handler error — ${errMsg}`);
+            await ctx.api.sendMessage(chatId, `Error: ${errMsg.slice(0, 200)}`).catch(() => {});
           }
         };
 
         // Chain onto the existing queue for this chat
         const prev = chatLocks.get(chatId) || Promise.resolve();
-        const next = prev.then(processMessage).catch(() => {});
+        const next = prev.then(processMessage).catch((err) => {
+          console.error(`  Telegram: queue error — ${err instanceof Error ? err.message : err}`);
+        });
         chatLocks.set(chatId, next);
       });
 

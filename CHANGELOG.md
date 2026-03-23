@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.5.0] — 2026-03-23
+
+### Fixed
+- **Model hangs forever on large prompts/tool calls** — the connection-level timeout (120s) only covers the initial HTTP request; once streaming starts, `reader.read()` waits indefinitely for the next chunk. Added per-chunk 60s timeout via `Promise.race` — if the model stops sending data mid-stream (OOM, stuck processing), Clank detects it and reports an error instead of hanging forever
+- **Debug logging for Telegram** — added request/response lifecycle logging to diagnose message handling issues
+
+---
+
 ## [1.4.9] — 2026-03-22
 
 ### Fixed
