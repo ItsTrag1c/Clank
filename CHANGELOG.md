@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.1] — 2026-03-23
+
+### Fixed
+- **Gateway crash on restart** — stale Telegram messages queued while offline no longer flood the model. Messages older than 30s before startup are dropped.
+- **Parallel model overload** — Telegram messages from the same chat are now processed sequentially (per-chat queue) instead of all at once.
+
+---
+
 ## [1.2.0] — 2026-03-22
 
 ### Added
