@@ -77,16 +77,20 @@ export const sttTool: Tool = {
   safetyLevel: "low",
   readOnly: true,
 
-  validate(args: Record<string, unknown>): ValidationResult {
+  validate(args: Record<string, unknown>, ctx: ToolContext): ValidationResult {
     if (!args.file_path || typeof args.file_path !== "string") return { ok: false, error: "file_path is required" };
     return { ok: true };
   },
 
-  async execute(args: Record<string, unknown>): Promise<string> {
+  async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
     const { readFile } = await import("node:fs/promises");
     const { existsSync } = await import("node:fs");
+    const { guardPath } = await import("../path-guard.js");
 
-    const filePath = args.file_path as string;
+    // Workspace containment check
+    const guard = guardPath(args.file_path as string, ctx.projectRoot, { allowExternal: ctx.allowExternal });
+    if (!guard.ok) return guard.error;
+    const filePath = guard.path;
     if (!existsSync(filePath)) return `Error: File not found: ${filePath}`;
 
     const config = await loadConfig();

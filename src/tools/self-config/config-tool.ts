@@ -68,10 +68,26 @@ export const configTool: Tool = {
           return `Key not found: ${key}`;
         }
       }
-      return typeof current === "object" ? JSON.stringify(current, null, 2) : String(current);
+      // Redact sensitive values before returning to LLM context
+      if (typeof current === "object") {
+        return JSON.stringify(redactConfig(current), null, 2);
+      }
+      // Check if the final key is sensitive
+      const SENSITIVE = new Set(["apikey", "api_key", "apiKey", "token", "bottoken", "botToken", "secret", "password", "pin"]);
+      const lastKey = keys[keys.length - 1];
+      if (SENSITIVE.has(lastKey) && typeof current === "string") {
+        return "[REDACTED]";
+      }
+      return String(current);
     }
 
     if (action === "set") {
+      // Prototype pollution protection
+      const BLOCKED_KEYS = ["__proto__", "constructor", "prototype"];
+      if (keys.some((k) => BLOCKED_KEYS.includes(k))) {
+        return "Error: blocked — unsafe key";
+      }
+
       let parsed: unknown = args.value;
       try {
         parsed = JSON.parse(args.value as string);

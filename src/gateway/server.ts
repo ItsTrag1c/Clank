@@ -199,6 +199,25 @@ export class GatewayServer {
       onError?: (message: string) => void;
     },
   ): Promise<string> {
+    // Rate limit check
+    const rlKey = deriveSessionKey(context);
+    if (this.isRateLimited(rlKey)) {
+      throw new Error("Rate limited — too many messages. Wait a moment.");
+    }
+
+    return this._handleInboundMessageStreamingInner(context, text, callbacks);
+  }
+
+  private async _handleInboundMessageStreamingInner(
+    context: RouteContext,
+    text: string,
+    callbacks: {
+      onToken?: (content: string) => void;
+      onToolStart?: (name: string) => void;
+      onToolResult?: (name: string, success: boolean) => void;
+      onError?: (message: string) => void;
+    },
+  ): Promise<string> {
     const agentId = resolveRoute(
       context,
       [],

@@ -31,12 +31,23 @@ export const webFetchTool: Tool = {
       // Block SSRF targets
       if (parsed.protocol === "file:") return { ok: false, error: "file:// URLs are not allowed" };
       const host = parsed.hostname.toLowerCase();
+      // Block loopback
       if (host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "0.0.0.0") {
         return { ok: false, error: "localhost URLs are blocked (SSRF protection)" };
       }
+      // Block private RFC 1918 ranges
+      if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+        return { ok: false, error: "Private network IPs are blocked (SSRF protection)" };
+      }
+      // Block IPv4-mapped IPv6
+      if (host.startsWith("[::ffff:")) {
+        return { ok: false, error: "IPv4-mapped IPv6 addresses are blocked" };
+      }
+      // Block cloud metadata
       if (host === "169.254.169.254" || host === "metadata.google.internal") {
         return { ok: false, error: "Cloud metadata endpoints are blocked" };
       }
+      // Block internal hostnames
       if (host.endsWith(".internal") || host.endsWith(".local")) {
         return { ok: false, error: "Internal network hostnames are blocked" };
       }
