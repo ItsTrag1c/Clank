@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.6.0] — 2026-03-23
+
+### Added
+- **Multi-provider support** — configure multiple cloud providers (Anthropic, OpenAI, Google, OpenRouter) during setup. Each provider can be assigned to different agents for true multi-model workflows
+- **OpenRouter provider** — access hundreds of models through one API key via OpenRouter's OpenAI-compatible API. Model format: `openrouter/model-name`
+- **Background task system** — main agent can spawn tasks on sub-agents that run independently. `spawn_task` tool with spawn/status/list actions. Results auto-injected into main agent's context when tasks complete
+- **Task registry** — in-memory registry tracks running/completed/failed/timed-out tasks with automatic cleanup
+- **Telegram `/tasks` command** — view background task status from Telegram
+- **`task.list` and `task.status` RPC methods** — task visibility from Web UI and TUI
+
+### Changed
+- **Setup wizard loads existing config** — re-running `clank setup` preserves your existing API keys and settings instead of starting from scratch. Each step shows pre-existing values and lets you keep them
+- **Multi-provider onboarding loop** — setup now lets you add multiple cloud providers in a loop instead of just one
+
+---
+
 ## [1.5.10] — 2026-03-23
 
 ### Fixed

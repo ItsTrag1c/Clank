@@ -105,6 +105,23 @@ export function createProvider(
       return { provider: p, providerName: "google", modelId, isLocal: false };
     }
 
+    case "openrouter": {
+      // OpenRouter — access many models through one API key.
+      // OpenAI-compatible API at https://openrouter.ai/api/v1
+      // Model format: openrouter/anthropic/claude-sonnet-4-6
+      const orConfig = config.openrouter ?? config["openrouter"];
+      if (!orConfig?.apiKey) {
+        throw new Error(`OpenRouter API key required for model ${modelId}`);
+      }
+      const p = new OpenAIProvider({
+        apiKey: orConfig.apiKey,
+        baseUrl: orConfig.baseUrl || "https://openrouter.ai/api/v1",
+        model,
+        maxResponseTokens: opts?.maxResponseTokens,
+      });
+      return { provider: p, providerName: "openrouter", modelId, isLocal: false };
+    }
+
     case "lmstudio":
     case "llamacpp":
     case "vllm":

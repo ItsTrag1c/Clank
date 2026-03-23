@@ -433,6 +433,7 @@ export class TelegramAdapter extends ChannelAdapter {
           "/new — Start a new session",
           "/reset — Clear current session",
           "/model — Show current model",
+          "/tasks — Show background tasks",
           "/think — Toggle thinking display",
         ].join("\n");
 
@@ -483,6 +484,15 @@ export class TelegramAdapter extends ChannelAdapter {
       case "model": {
         const model = this.config?.agents?.defaults?.model?.primary || "unknown";
         return `Current model: \`${model}\``;
+      }
+
+      case "tasks": {
+        const tasks = this.gateway?.getTaskRegistry()?.list() || [];
+        if (tasks.length === 0) return "No background tasks.";
+        return "*Background Tasks:*\n" + tasks.map((t) => {
+          const elapsed = Math.round(((t.completedAt || Date.now()) - t.startedAt) / 1000);
+          return `• *${t.label.slice(0, 40)}* (${t.agentId}) — ${t.status} (${elapsed}s)`;
+        }).join("\n");
       }
 
       case "think":

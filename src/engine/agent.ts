@@ -24,6 +24,7 @@ import {
 } from "../providers/types.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { PromptFallbackProvider } from "../providers/prompt-fallback.js";
+import type { TaskRegistry } from "../tasks/index.js";
 import { SessionStore, type SessionEntry } from "../sessions/index.js";
 
 /** Agent identity — who is this agent? */
@@ -74,6 +75,12 @@ export class AgentEngine extends EventEmitter {
   private autoApprove = { low: true, medium: false, high: false };
   /** Tools the user has approved "always" for this session */
   private alwaysApproved = new Set<string>();
+  /** Background task registry (if available) */
+  private taskRegistry: TaskRegistry | null = null;
+  /** Function to spawn background tasks (main agent only) */
+  private spawnTaskFn: ToolContext["spawnTask"] = undefined;
+  /** Session key for this engine (used to consume completed tasks) */
+  private sessionKey: string = "";
 
   constructor(opts: {
     identity: AgentIdentity;
@@ -82,6 +89,9 @@ export class AgentEngine extends EventEmitter {
     provider: ResolvedProvider;
     autoApprove?: { low: boolean; medium: boolean; high: boolean };
     systemPrompt?: string;
+    taskRegistry?: TaskRegistry;
+    spawnTask?: ToolContext["spawnTask"];
+    sessionKey?: string;
   }) {
     super();
     // Engine is reused across messages — each message adds/removes listeners
@@ -93,6 +103,9 @@ export class AgentEngine extends EventEmitter {
     this.resolvedProvider = opts.provider;
     if (opts.autoApprove) this.autoApprove = opts.autoApprove;
     if (opts.systemPrompt) this.systemPrompt = opts.systemPrompt;
+    if (opts.taskRegistry) this.taskRegistry = opts.taskRegistry;
+    if (opts.spawnTask) this.spawnTaskFn = opts.spawnTask;
+    if (opts.sessionKey) this.sessionKey = opts.sessionKey;
 
     this.contextEngine = new ContextEngine({
       contextWindow: opts.provider.provider.contextWindow(),
@@ -149,6 +162,23 @@ export class AgentEngine extends EventEmitter {
 
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
+
+    // Inject completed background task results before processing
+    if (this.taskRegistry && this.sessionKey) {
+      const completed = this.taskRegistry.consumeCompleted(this.sessionKey);
+      if (completed.length > 0) {
+        const results = completed.map((t) => {
+          if (t.status === "completed") {
+            return `[Task Complete] "${t.label}" (agent: ${t.agentId}):\n${t.result}`;
+          }
+          return `[Task ${t.status === "failed" ? "Failed" : "Timed Out"}] "${t.label}" (agent: ${t.agentId}): ${t.error || "unknown error"}`;
+        }).join("\n\n");
+        this.contextEngine.ingest({
+          role: "user",
+          content: `[System] Background tasks completed:\n\n${results}`,
+        });
+      }
+    }
 
     // Add user message to context
     this.contextEngine.ingest({ role: "user", content: text });
@@ -376,6 +406,8 @@ export class AgentEngine extends EventEmitter {
             autoApprove: this.autoApprove,
             agentId: this.identity.id,
             signal,
+            taskRegistry: this.taskRegistry ?? undefined,
+            spawnTask: this.spawnTaskFn,
           };
 
           const validation = tool.validate(tc.arguments, toolCtx);

@@ -45,7 +45,15 @@ export async function runSetup(opts: {
   acceptRisk?: boolean;
 }): Promise<void> {
   await ensureConfigDir();
-  const config = defaultConfig();
+
+  // Load existing config so users can keep pre-existing values.
+  // Fall back to defaults for anything missing.
+  let config: ClankConfig;
+  try {
+    config = await loadConfig();
+  } catch {
+    config = defaultConfig();
+  }
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
@@ -104,44 +112,75 @@ export async function runSetup(opts: {
       console.log(dim("  Install Ollama (recommended) or configure a cloud provider."));
     }
 
-    // Step 3b: Cloud provider (optional fallback)
+    // Step 3b: Cloud providers (add multiple)
     console.log("");
-    const addCloud = await ask(rl, cyan("  Add a cloud provider as fallback? [y/N] "));
-    if (addCloud.toLowerCase() === "y") {
-      console.log(dim("    1. Anthropic (Claude)"));
-      console.log(dim("    2. OpenAI (GPT)"));
-      console.log(dim("    3. Google (Gemini)"));
-      const provider = await ask(rl, cyan("    Which provider? [1]: "));
 
-      switch (provider || "1") {
-        case "1": {
-          const key = await ask(rl, cyan("    Anthropic API key: "));
-          if (key.trim()) {
-            config.models.providers.anthropic = { apiKey: key.trim() };
-            config.agents.defaults.model.fallbacks = ["anthropic/claude-sonnet-4-6"];
-            console.log(green("    Anthropic configured as fallback"));
+    // Show existing providers
+    const existingProviders: string[] = [];
+    const providers = config.models.providers as Record<string, { apiKey?: string } | undefined>;
+    for (const name of ["anthropic", "openai", "google", "openrouter"]) {
+      if (providers[name]?.apiKey) existingProviders.push(name);
+    }
+    if (existingProviders.length > 0) {
+      console.log(dim(`  Existing cloud providers: ${existingProviders.join(", ")}`));
+    }
+
+    const addCloud = await ask(rl, cyan("  Add cloud providers? [y/N] "));
+    if (addCloud.toLowerCase() === "y") {
+      const fallbacks: string[] = config.agents.defaults.model.fallbacks || [];
+      let picking = true;
+      while (picking) {
+        console.log("");
+        console.log("    1. Anthropic (Claude)");
+        console.log("    2. OpenAI (GPT-4o, Codex)");
+        console.log("    3. Google (Gemini)");
+        console.log("    4. OpenRouter (many models via one key)");
+        console.log("    5. Done");
+        const choice = await ask(rl, cyan("    Which provider? "));
+
+        const providerSetup = async (name: string, defaultModel: string, keyName: string) => {
+          const existing = providers[name]?.apiKey;
+          if (existing) {
+            const keep = await ask(rl, cyan(`    ${keyName} already configured. Keep existing? [Y/n] `));
+            if (keep.toLowerCase() !== "n") {
+              console.log(green(`    Kept existing ${name} config`));
+              if (!fallbacks.includes(defaultModel)) fallbacks.push(defaultModel);
+              return;
+            }
           }
-          break;
-        }
-        case "2": {
-          const key = await ask(rl, cyan("    OpenAI API key: "));
+          const key = await ask(rl, cyan(`    ${keyName} API key: `));
           if (key.trim()) {
-            config.models.providers.openai = { apiKey: key.trim() };
-            config.agents.defaults.model.fallbacks = ["openai/gpt-4o"];
-            console.log(green("    OpenAI configured as fallback"));
+            const entry: Record<string, string> = { apiKey: key.trim() };
+            if (name === "openrouter") entry.baseUrl = "https://openrouter.ai/api/v1";
+            (config.models.providers as Record<string, unknown>)[name] = entry;
+            if (!fallbacks.includes(defaultModel)) fallbacks.push(defaultModel);
+            console.log(green(`    ${name} configured`));
           }
-          break;
-        }
-        case "3": {
-          const key = await ask(rl, cyan("    Google AI API key: "));
-          if (key.trim()) {
-            config.models.providers.google = { apiKey: key.trim() };
-            config.agents.defaults.model.fallbacks = ["google/gemini-2.0-flash"];
-            console.log(green("    Google configured as fallback"));
+        };
+
+        switch (choice) {
+          case "1": await providerSetup("anthropic", "anthropic/claude-sonnet-4-6", "Anthropic"); break;
+          case "2": await providerSetup("openai", "openai/gpt-4o", "OpenAI"); break;
+          case "3": await providerSetup("google", "google/gemini-2.0-flash", "Google"); break;
+          case "4": {
+            await providerSetup("openrouter", "openrouter/anthropic/claude-sonnet-4-6", "OpenRouter");
+            // Let user pick a default OpenRouter model
+            if (providers.openrouter?.apiKey) {
+              const orModel = await ask(rl, cyan("    Default OpenRouter model (e.g., meta-llama/llama-3.1-70b): "));
+              if (orModel.trim()) {
+                const fullModel = `openrouter/${orModel.trim()}`;
+                const idx = fallbacks.indexOf("openrouter/anthropic/claude-sonnet-4-6");
+                if (idx >= 0) fallbacks[idx] = fullModel;
+                else fallbacks.push(fullModel);
+              }
+            }
+            break;
           }
-          break;
+          case "5": case "": picking = false; break;
+          default: console.log(dim("    Invalid choice")); break;
         }
       }
+      config.agents.defaults.model.fallbacks = fallbacks;
     }
 
     // Step 4: Gateway Configuration

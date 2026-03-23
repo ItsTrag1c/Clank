@@ -18,7 +18,7 @@ export const modelTool: Tool = {
       properties: {
         action: { type: "string", description: "'list', 'detect', 'set-default', or 'add-provider'" },
         model: { type: "string", description: "Model ID for set-default (e.g., 'ollama/qwen3.5')" },
-        provider: { type: "string", description: "Provider name for add-provider ('anthropic', 'openai', 'google')" },
+        provider: { type: "string", description: "Provider name for add-provider ('anthropic', 'openai', 'google', 'openrouter')" },
         apiKey: { type: "string", description: "API key for add-provider" },
       },
       required: ["action"],
@@ -72,7 +72,12 @@ export const modelTool: Tool = {
     if (action === "add-provider") {
       if (!args.provider || !args.apiKey) return "Error: provider and apiKey are required";
       const provider = args.provider as string;
-      (config.models.providers as Record<string, unknown>)[provider] = { apiKey: args.apiKey as string };
+      const entry: Record<string, string> = { apiKey: args.apiKey as string };
+      // OpenRouter needs a baseUrl since it's an OpenAI-compatible cloud API
+      if (provider === "openrouter") {
+        entry.baseUrl = "https://openrouter.ai/api/v1";
+      }
+      (config.models.providers as Record<string, unknown>)[provider] = entry;
       await saveConfig(config);
       return `Provider ${provider} added with API key`;
     }

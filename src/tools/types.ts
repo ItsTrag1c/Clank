@@ -21,6 +21,15 @@ export interface ToolContext {
   agentId?: string;
   /** Abort signal */
   signal?: AbortSignal;
+  /** Task registry for background task management */
+  taskRegistry?: import("../tasks/registry.js").TaskRegistry;
+  /** Spawn a background task (only available to main agent) */
+  spawnTask?: (opts: {
+    agentId: string;
+    prompt: string;
+    label: string;
+    timeoutMs: number;
+  }) => Promise<string>;
 }
 
 /** Validation result from tool.validate() */

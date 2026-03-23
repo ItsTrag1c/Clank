@@ -8,6 +8,7 @@ export { gatewayTool } from "./gateway-tool.js";
 export { messageTool } from "./message-tool.js";
 export { ttsTool, sttTool, voiceListTool } from "./voice-tool.js";
 export { fileShareTool } from "./file-share-tool.js";
+export { taskTool } from "./task-tool.js";
 
 import type { ToolRegistry } from "../registry.js";
 import { configTool } from "./config-tool.js";
@@ -20,6 +21,7 @@ import { gatewayTool } from "./gateway-tool.js";
 import { messageTool } from "./message-tool.js";
 import { ttsTool, sttTool, voiceListTool } from "./voice-tool.js";
 import { fileShareTool } from "./file-share-tool.js";
+import { taskTool } from "./task-tool.js";
 
 /** Register all self-configuration tools into a registry */
 export function registerSelfConfigTools(registry: ToolRegistry): void {
@@ -35,4 +37,5 @@ export function registerSelfConfigTools(registry: ToolRegistry): void {
   registry.register(sttTool);
   registry.register(voiceListTool);
   registry.register(fileShareTool);
+  registry.register(taskTool);
 }

@@ -22,6 +22,7 @@ import { SessionStore } from "../sessions/index.js";
 import { MemoryManager } from "../memory/index.js";
 import { type ClankConfig, getConfigDir, ConfigWatcher } from "../config/index.js";
 import { CronScheduler } from "../cron/index.js";
+import { TaskRegistry } from "../tasks/index.js";
 import { resolveRoute, deriveSessionKey, type RouteContext } from "../routing/index.js";
 import { type ChannelAdapter } from "../adapters/base.js";
 import { TelegramAdapter } from "../adapters/telegram.js";
@@ -62,6 +63,7 @@ export class GatewayServer {
   private cronScheduler: CronScheduler;
   private configWatcher: ConfigWatcher;
   private pluginLoader: PluginLoader;
+  private taskRegistry: TaskRegistry;
   private adapters: ChannelAdapter[] = [];
   private running = false;
   /** Rate limiting: track message timestamps per session */
@@ -77,6 +79,12 @@ export class GatewayServer {
     this.cronScheduler = new CronScheduler(join(getConfigDir(), "cron"));
     this.configWatcher = new ConfigWatcher();
     this.pluginLoader = new PluginLoader();
+    this.taskRegistry = new TaskRegistry();
+  }
+
+  /** Get the task registry (for adapters to list tasks) */
+  getTaskRegistry(): TaskRegistry {
+    return this.taskRegistry;
   }
 
   /** Start the gateway server */
@@ -97,6 +105,7 @@ export class GatewayServer {
     await this.sessionStore.init();
     await this.memoryManager.init();
     await this.cronScheduler.init();
+    this.taskRegistry.start();
 
     // Load plugins and register their tools
     const plugins = await this.pluginLoader.loadAll();
@@ -306,6 +315,8 @@ export class GatewayServer {
 
     // Stop subsystems
     this.cronScheduler.stop();
+    this.taskRegistry.cancelAll();
+    this.taskRegistry.stop();
     this.configWatcher.stop();
 
     // Stop channel adapters
@@ -342,7 +353,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.5.10",
+        version: "1.6.0",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -478,7 +489,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.5.10",
+      version: "1.6.0",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -560,6 +571,24 @@ export class GatewayServer {
             name: agentCfg.name,
             model: agentCfg.model?.primary || this.config.agents.defaults.model.primary,
             status: "online",
+          } : null);
+          break;
+        }
+
+        // === Tasks ===
+        case "task.list":
+          this.sendResponse(client, frame.id, true, this.taskRegistry.list().map((t) => ({
+            id: t.id, label: t.label, agentId: t.agentId, model: t.model,
+            status: t.status, startedAt: t.startedAt, completedAt: t.completedAt,
+          })));
+          break;
+
+        case "task.status": {
+          const task = this.taskRegistry.get(frame.params?.taskId as string);
+          this.sendResponse(client, frame.id, true, task ? {
+            id: task.id, label: task.label, agentId: task.agentId, model: task.model,
+            status: task.status, prompt: task.prompt, result: task.result, error: task.error,
+            startedAt: task.startedAt, completedAt: task.completedAt,
           } : null);
           break;
         }
@@ -774,6 +803,59 @@ export class GatewayServer {
       ? systemPrompt + "\n\n---\n\n" + memoryBlock
       : systemPrompt;
 
+    // Only the main/default agent can spawn background tasks.
+    // Sub-agents (spawned by tasks) don't get this capability.
+    const isMainAgent = !sessionKey.startsWith("task:") && (
+      agentId === (this.config.agents.list[0]?.id || "default") || agentId === "default"
+    );
+
+    const spawnTaskFn = isMainAgent ? async (opts: {
+      agentId: string; prompt: string; label: string; timeoutMs: number;
+    }): Promise<string> => {
+      // Look up the sub-agent's model
+      const subAgentConfig = this.config.agents.list.find((a) => a.id === opts.agentId);
+      const subModel = subAgentConfig?.model?.primary || this.config.agents.defaults.model.primary;
+
+      const task = this.taskRegistry.create({
+        agentId: opts.agentId,
+        model: subModel,
+        prompt: opts.prompt,
+        label: opts.label,
+        timeoutMs: opts.timeoutMs,
+        spawnedBy: sessionKey,
+      });
+
+      // Create sub-agent engine in the background
+      const subSessionKey = `task:${task.id}`;
+      const subEngine = await this.getOrCreateEngine(subSessionKey, opts.agentId, "task");
+
+      // Run with timeout — fire and forget
+      const timeout = setTimeout(() => {
+        subEngine.cancel();
+        this.taskRegistry.update(task.id, { status: "timeout", completedAt: Date.now(), error: "Task timed out" });
+        subEngine.destroy();
+        this.engines.delete(subSessionKey);
+      }, opts.timeoutMs);
+
+      subEngine.sendMessage(opts.prompt).then((result) => {
+        clearTimeout(timeout);
+        this.taskRegistry.update(task.id, { status: "completed", result, completedAt: Date.now() });
+        subEngine.destroy();
+        this.engines.delete(subSessionKey);
+      }).catch((err) => {
+        clearTimeout(timeout);
+        this.taskRegistry.update(task.id, {
+          status: "failed",
+          error: err instanceof Error ? err.message : String(err),
+          completedAt: Date.now(),
+        });
+        subEngine.destroy();
+        this.engines.delete(subSessionKey);
+      });
+
+      return task.id;
+    } : undefined;
+
     engine = new AgentEngine({
       identity,
       toolRegistry: this.toolRegistry,
@@ -781,6 +863,9 @@ export class GatewayServer {
       provider: resolved,
       autoApprove: this.config.tools.autoApprove,
       systemPrompt: fullPrompt,
+      taskRegistry: this.taskRegistry,
+      spawnTask: spawnTaskFn,
+      sessionKey,
     });
 
     await engine.loadSession(sessionKey, channel);
