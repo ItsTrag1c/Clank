@@ -7,6 +7,7 @@ export { cronTool } from "./cron-tool.js";
 export { gatewayTool } from "./gateway-tool.js";
 export { messageTool } from "./message-tool.js";
 export { ttsTool, sttTool, voiceListTool } from "./voice-tool.js";
+export { fileShareTool } from "./file-share-tool.js";
 
 import type { ToolRegistry } from "../registry.js";
 import { configTool } from "./config-tool.js";
@@ -18,6 +19,7 @@ import { cronTool } from "./cron-tool.js";
 import { gatewayTool } from "./gateway-tool.js";
 import { messageTool } from "./message-tool.js";
 import { ttsTool, sttTool, voiceListTool } from "./voice-tool.js";
+import { fileShareTool } from "./file-share-tool.js";
 
 /** Register all self-configuration tools into a registry */
 export function registerSelfConfigTools(registry: ToolRegistry): void {
@@ -32,4 +34,5 @@ export function registerSelfConfigTools(registry: ToolRegistry): void {
   registry.register(ttsTool);
   registry.register(sttTool);
   registry.register(voiceListTool);
+  registry.register(fileShareTool);
 }

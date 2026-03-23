@@ -233,7 +233,9 @@ export class TelegramAdapter extends ChannelAdapter {
               const tts = new TTSEngine(config);
 
               if (tts.isAvailable() && response.length < 2000) {
-                const audio = await tts.synthesize(response);
+                // Use per-agent voice ID if configured
+                const agentVoice = config.agents.list.find((a: any) => a.voiceId)?.voiceId;
+                const audio = await tts.synthesize(response, { voiceId: agentVoice });
                 if (audio) {
                   const { InputFile } = await import("grammy");
                   await ctx.api.sendVoice(chatId, new InputFile(audio.audioBuffer, "reply.mp3"));
@@ -256,6 +258,110 @@ export class TelegramAdapter extends ChannelAdapter {
         const prev = chatLocks.get(chatId) || Promise.resolve();
         const next = prev.then(processVoice).catch(() => {});
         chatLocks.set(chatId, next);
+      });
+
+      // Handle photo messages — describe via vision model or save for agent
+      bot.on("message:photo", async (ctx) => {
+        const msg = ctx.message;
+        const chatId = msg.chat.id;
+        if (msg.date < startupTime - 30) return;
+
+        // Permission check (same as text)
+        if (telegramConfig.allowFrom && telegramConfig.allowFrom.length > 0) {
+          const username = msg.from?.username ? `@${msg.from.username}` : "";
+          const userIdStr = String(msg.from?.id || "");
+          const allowed = telegramConfig.allowFrom.map(String);
+          if (!allowed.some((a) => a === userIdStr || a.toLowerCase() === username.toLowerCase() || a.toLowerCase() === (msg.from?.username || "").toLowerCase())) return;
+        }
+
+        const processPhoto = async () => {
+          if (!this.gateway) return;
+          try {
+            // Get the largest photo
+            const photo = msg.photo[msg.photo.length - 1];
+            const file = await bot.api.getFile(photo.file_id);
+            const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${file.file_path}`;
+
+            const caption = msg.caption || "";
+            const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
+
+            // Route to agent with image context
+            const response = await this.gateway.handleInboundMessage(
+              { channel: "telegram", peerId: chatId, peerKind: isGroup ? "group" : "dm" },
+              `[Image received: ${fileUrl}]${caption ? ` Caption: ${caption}` : ""}\n\nDescribe or analyze the image if you can, or acknowledge it.`,
+            );
+
+            if (response) {
+              const chunks = splitMessage(response, 4000);
+              for (const chunk of chunks) await ctx.api.sendMessage(chatId, chunk);
+            }
+          } catch (err: unknown) {
+            await ctx.api.sendMessage(chatId, `Error: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
+          }
+        };
+
+        const prev = chatLocks.get(chatId) || Promise.resolve();
+        chatLocks.set(chatId, prev.then(processPhoto).catch(() => {}));
+      });
+
+      // Handle document/file messages — save for agent use
+      bot.on("message:document", async (ctx) => {
+        const msg = ctx.message;
+        const chatId = msg.chat.id;
+        if (msg.date < startupTime - 30) return;
+
+        if (telegramConfig.allowFrom && telegramConfig.allowFrom.length > 0) {
+          const username = msg.from?.username ? `@${msg.from.username}` : "";
+          const userIdStr = String(msg.from?.id || "");
+          const allowed = telegramConfig.allowFrom.map(String);
+          if (!allowed.some((a) => a === userIdStr || a.toLowerCase() === username.toLowerCase() || a.toLowerCase() === (msg.from?.username || "").toLowerCase())) return;
+        }
+
+        const processDoc = async () => {
+          if (!this.gateway) return;
+          try {
+            const doc = msg.document;
+            if (!doc) return;
+
+            // Security: limit file size (10MB)
+            if (doc.file_size && doc.file_size > 10 * 1024 * 1024) {
+              await ctx.api.sendMessage(chatId, "File too large (max 10MB).");
+              return;
+            }
+
+            // Download and save to temp
+            const file = await bot.api.getFile(doc.file_id);
+            const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${file.file_path}`;
+            const res = await fetch(fileUrl);
+            if (!res.ok) { await ctx.api.sendMessage(chatId, "Could not download file."); return; }
+
+            const { writeFile: wf } = await import("node:fs/promises");
+            const { join } = await import("node:path");
+            const { tmpdir } = await import("node:os");
+            // Sanitize filename to prevent path traversal
+            const safeName = (doc.file_name || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
+            const savePath = join(tmpdir(), `clank-upload-${Date.now()}-${safeName}`);
+            await wf(savePath, Buffer.from(await res.arrayBuffer()));
+
+            const caption = msg.caption || "";
+            const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
+
+            const response = await this.gateway.handleInboundMessage(
+              { channel: "telegram", peerId: chatId, peerKind: isGroup ? "group" : "dm" },
+              `[File received: "${doc.file_name}" saved to ${savePath}]${caption ? ` Note: ${caption}` : ""}\n\nYou can read this file with the read_file tool.`,
+            );
+
+            if (response) {
+              const chunks = splitMessage(response, 4000);
+              for (const chunk of chunks) await ctx.api.sendMessage(chatId, chunk);
+            }
+          } catch (err: unknown) {
+            await ctx.api.sendMessage(chatId, `Error: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
+          }
+        };
+
+        const prev = chatLocks.get(chatId) || Promise.resolve();
+        chatLocks.set(chatId, prev.then(processDoc).catch(() => {}));
       });
 
       // bot.start() is blocking (resolves when bot stops) — run it without await
