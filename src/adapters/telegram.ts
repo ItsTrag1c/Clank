@@ -147,6 +147,17 @@ export class TelegramAdapter extends ChannelAdapter {
             );
 
             // Final edit with complete response (remove cursor)
+            // If sendingInitial is true but streamMsgId isn't set yet, the
+            // initial sendMessage is still in flight — wait for it briefly
+            if (sendingInitial && !streamMsgId) {
+              await new Promise<void>((r) => {
+                const check = setInterval(() => {
+                  if (streamMsgId) { clearInterval(check); r(); }
+                }, 50);
+                setTimeout(() => { clearInterval(check); r(); }, 3000);
+              });
+            }
+
             if (streamMsgId && response) {
               const finalText = response.length > 4000
                 ? response.slice(0, 3950) + "\n... (truncated)"

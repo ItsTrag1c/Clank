@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.4.6] — 2026-03-22
+
+### Fixed
+- **Telegram stutter (for real)** — when the model responds fast, the initial `sendMessage` promise hasn't resolved by the time the full response is ready, causing a duplicate message via the fallback path; now waits for the in-flight message ID before falling back
+
+---
+
 ## [1.4.5] — 2026-03-22
 
 ### Fixed
