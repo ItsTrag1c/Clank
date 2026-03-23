@@ -97,6 +97,12 @@ export class TelegramAdapter extends ChannelAdapter {
             console.log(`  Telegram: processing message from ${userId} in ${chatId}`);
             await ctx.api.sendChatAction(chatId, "typing");
 
+            // Keep sending "typing" every 4s while the model processes
+            // (thinking models can take a long time before producing content)
+            const typingInterval = setInterval(() => {
+              bot.api.sendChatAction(chatId, "typing").catch(() => {});
+            }, 4000);
+
             // Streaming: send initial message then edit as tokens arrive
             let streamMsgId: number | null = null;
             let sendingInitial = false; // Guard against duplicate initial sends
@@ -171,8 +177,10 @@ export class TelegramAdapter extends ChannelAdapter {
                 await ctx.api.sendMessage(chatId, chunk);
               }
             }
+            clearInterval(typingInterval);
             console.log(`  Telegram: response complete (${response?.length || 0} chars)`);
           } catch (err: unknown) {
+            clearInterval(typingInterval);
             const errMsg = err instanceof Error ? err.message : String(err);
             console.error(`  Telegram: message handler error — ${errMsg}`);
             await ctx.api.sendMessage(chatId, `Error: ${errMsg.slice(0, 200)}`).catch(() => {});

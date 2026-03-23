@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.5.2] — 2026-03-23
+
+### Fixed
+- **Thinking models (Qwen3.5) exhaust tokens on reasoning** — the model generates `<think>` reasoning tokens that eat the entire context window, leaving nothing for actual content. Added default `max_tokens: 4096` for local models and `reasoning_effort: "low"` to reduce thinking overhead
+- **Telegram shows nothing during model thinking** — added periodic "typing" indicator every 4 seconds so the bot doesn't appear dead while the model processes internally
+- **Root cause found via direct API testing** — Qwen3.5-35B returns empty `content` with all output in `reasoning_content`; without a max_tokens cap, the model spends all its budget on thinking
+
+---
+
 ## [1.5.1] — 2026-03-23
 
 ### Fixed

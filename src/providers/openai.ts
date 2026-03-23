@@ -139,12 +139,23 @@ export class OpenAIProvider extends BaseProvider {
       stream_options: { include_usage: true },
     };
 
+    // For local thinking models (Qwen3.5, etc.), minimize reasoning overhead
+    // so more tokens go to actual content and tool calls
+    if (this.isLocal) {
+      body.reasoning_effort = "low";
+    }
+
     if (tools.length > 0) {
       body.tools = this.formatTools(tools);
     }
 
+    // Always set max_tokens for local models — thinking models (like Qwen3.5)
+    // generate reasoning tokens that eat the context window. Without a cap,
+    // the model can exhaust all space on thinking and never produce content.
     if (this.maxResponseTokens) {
       body.max_tokens = this.maxResponseTokens;
+    } else if (this.isLocal) {
+      body.max_tokens = 4096;
     }
 
     const headers: Record<string, string> = {
