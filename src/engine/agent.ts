@@ -83,6 +83,9 @@ export class AgentEngine extends EventEmitter {
     systemPrompt?: string;
   }) {
     super();
+    // Engine is reused across messages — each message adds/removes listeners
+    // via wireEngineEvents(), so we need headroom beyond the default 10
+    this.setMaxListeners(30);
     this.identity = opts.identity;
     this.toolRegistry = opts.toolRegistry;
     this.sessionStore = opts.sessionStore;

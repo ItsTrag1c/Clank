@@ -306,7 +306,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.4.3",
+        version: "1.4.4",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -438,7 +438,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.4.3",
+      version: "1.4.4",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -666,10 +666,19 @@ export class GatewayServer {
     const now = Date.now();
     const timestamps = this.rateLimiter.get(sessionKey) || [];
 
-    // Clean old entries
+    // Clean old entries — only keep timestamps within the window
     const recent = timestamps.filter((t) => now - t < this.RATE_LIMIT_WINDOW);
     recent.push(now);
     this.rateLimiter.set(sessionKey, recent);
+
+    // Periodically purge stale sessions from the map to prevent unbounded growth
+    if (this.rateLimiter.size > 100) {
+      for (const [key, ts] of this.rateLimiter) {
+        if (ts.length === 0 || now - ts[ts.length - 1] > this.RATE_LIMIT_WINDOW * 2) {
+          this.rateLimiter.delete(key);
+        }
+      }
+    }
 
     return recent.length > this.RATE_LIMIT_MAX;
   }
@@ -786,9 +795,6 @@ export class GatewayServer {
       const confirmId = `confirm_${Date.now()}`;
       this.sendEvent(client, "confirm-needed", { id: confirmId, actions });
 
-      // Default deny after 30s timeout for safety
-      const timeout = setTimeout(() => resolve(false), 30_000);
-
       // Listen for resolve from client (one-shot)
       const resolveHandler = (raw: Buffer | string) => {
         const frame = parseFrame(raw.toString());
@@ -802,6 +808,13 @@ export class GatewayServer {
         }
       };
       client.ws.on("message", resolveHandler);
+
+      // Default deny after 30s timeout — must also remove the WS listener
+      // to prevent accumulating orphaned handlers across messages
+      const timeout = setTimeout(() => {
+        client.ws.removeListener("message", resolveHandler);
+        resolve(false);
+      }, 30_000);
     };
     engine.on("confirm-needed", confirmListener);
     listeners.push(["confirm-needed", confirmListener]);

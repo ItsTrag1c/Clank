@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.4.4] — 2026-03-22
+
+### Fixed
+- **Gateway crash after 4-5 messages** — confirmation handler WebSocket listeners were never removed on timeout, accumulating orphaned handlers per message until the process crashed
+- **Engine listener limit** — set `maxListeners` to 30 on AgentEngine (Node.js default of 10 was too low since each message cycle wires 10 event listeners)
+- **Rate limiter memory leak** — stale session entries in the rate limiter Map were never purged; added periodic cleanup when map exceeds 100 entries
+
+---
+
 ## [1.4.3] — 2026-03-22
 
 ### Fixed
