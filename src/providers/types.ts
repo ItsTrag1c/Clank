@@ -96,6 +96,36 @@ export interface ModelConfig {
 }
 
 /**
+ * Models known to support native tool/function calling via the API.
+ * Models NOT in this list should use PromptFallbackProvider instead,
+ * which injects tools into the system prompt as text.
+ */
+const TOOL_CAPABLE_PATTERNS = [
+  /^llama3\.[1-9]/i,
+  /^llama-3\.[1-9]/i,
+  /^qwen[23]/i,
+  /^mistral-nemo/i,
+  /^mistral-large/i,
+  /^command-r/i,
+  /^firefunction/i,
+  /^hermes-[23]/i,
+  /^nemotron/i,
+];
+
+/**
+ * Check if a model name is known to support native tool calling.
+ * Used by the agent engine to decide whether to use API-level tools
+ * or the prompt-based fallback for local models.
+ */
+export function supportsNativeTools(model: string): boolean {
+  // Strip provider prefix (e.g., "ollama/qwen3.5" → "qwen3.5")
+  const name = model.includes("/") ? model.split("/").pop()! : model;
+  // Strip quantization/tag suffix (e.g., "llama3.1:8b-q4" → "llama3.1")
+  const baseName = name.split(":")[0];
+  return TOOL_CAPABLE_PATTERNS.some((p) => p.test(baseName));
+}
+
+/**
  * Base provider interface.
  *
  * Every LLM provider (Ollama, Anthropic, OpenAI, Google) implements this.

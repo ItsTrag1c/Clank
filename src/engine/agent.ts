@@ -20,6 +20,7 @@ import {
   type StreamEvent,
   type ToolDefinition,
   type ResolvedProvider,
+  supportsNativeTools,
 } from "../providers/types.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { PromptFallbackProvider } from "../providers/prompt-fallback.js";
@@ -169,13 +170,14 @@ export class AgentEngine extends EventEmitter {
     const provider = this.resolvedProvider.provider;
     const isLocal = this.resolvedProvider.isLocal;
 
-    // Wrap provider with prompt fallback if model doesn't support tools
+    // Wrap local providers with prompt fallback if the model doesn't support
+    // native tool calling. This applies to ALL local providers (Ollama,
+    // llama.cpp, LM Studio, vLLM, etc.) — not just Ollama. The fallback
+    // injects tools into the system prompt as text and parses the model's
+    // text output for ```tool_call``` blocks via regex.
     let activeProvider: BaseProvider = provider;
-    if (isLocal && provider instanceof OllamaProvider) {
-      const modelName = this.identity.model.primary.split("/").pop() || "";
-      if (!OllamaProvider.supportsTools(modelName)) {
-        activeProvider = new PromptFallbackProvider(provider);
-      }
+    if (isLocal && !supportsNativeTools(this.identity.model.primary)) {
+      activeProvider = new PromptFallbackProvider(provider);
     }
 
     let fullResponse = "";

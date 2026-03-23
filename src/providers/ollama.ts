@@ -13,20 +13,8 @@ import {
   type Message,
   type StreamEvent,
   type ToolDefinition,
+  supportsNativeTools,
 } from "./types.js";
-
-/** Models known to support native tool calling */
-const TOOL_CAPABLE_PATTERNS = [
-  /^llama3\.[1-9]/i,
-  /^llama-3\.[1-9]/i,
-  /^qwen[23]/i,
-  /^mistral-nemo/i,
-  /^mistral-large/i,
-  /^command-r/i,
-  /^firefunction/i,
-  /^hermes-[23]/i,
-  /^nemotron/i,
-];
 
 /** Cache for context window sizes per model */
 const contextWindowCache = new Map<string, number>();
@@ -122,8 +110,7 @@ export class OllamaProvider extends BaseProvider {
 
   /** Check if a model supports native tool calling */
   static supportsTools(model: string): boolean {
-    const baseName = model.split(":")[0];
-    return TOOL_CAPABLE_PATTERNS.some((p) => p.test(baseName));
+    return supportsNativeTools(model);
   }
 
   contextWindow(): number {

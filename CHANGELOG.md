@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.5.7] — 2026-03-23
+
+### Fixed
+- **Tools completely broken for llama.cpp / LM Studio / vLLM models** — the PromptFallbackProvider (which injects tools into the system prompt as text) was only applied to Ollama models. All other local providers (llama.cpp, LM Studio, vLLM) sent tools via the API's `tools` parameter, which most local models can't handle — so they just ignored tools entirely. Now ALL local models that aren't in the known tool-capable list automatically get prompt-based tool injection
+- **Tool-capable model detection shared across providers** — moved the `TOOL_CAPABLE_PATTERNS` list from the Ollama provider to a shared `supportsNativeTools()` function in types.ts, used by the agent engine for any local provider
+
+---
+
 ## [1.5.6] — 2026-03-23
 
 ### Fixed
