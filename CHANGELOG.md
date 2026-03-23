@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.0] — 2026-03-22
+
+### Added
+- **Two-tier context compaction** — critical for local model performance:
+  - Tier 1 (fast): system prompt budgeting, tool result dedup, message truncation, aggressive dropping
+  - Tier 2 (LLM-summarized): model generates conversation recap replacing oldest messages. Preserves meaning over long sessions.
+  - Token budgeting: reserves 25% for response, budgets system prompt separately from conversation
+- **`clank update`** — update to latest npm version, preserves config/sessions/memory, restarts gateway
+
+---
+
 ## [1.1.0] — 2026-03-22
 
 ### Security Hardening

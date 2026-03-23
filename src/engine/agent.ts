@@ -93,11 +93,16 @@ export class AgentEngine extends EventEmitter {
       contextWindow: opts.provider.provider.contextWindow(),
       isLocal: opts.provider.isLocal,
     });
+
+    // Wire provider into context engine for tier 2 LLM-summarized compaction
+    this.contextEngine.setProvider(opts.provider.provider, opts.identity.model.primary);
   }
 
   /** Set the system prompt */
   setSystemPrompt(prompt: string): void {
     this.systemPrompt = prompt;
+    // Update token budget in context engine
+    this.contextEngine.setSystemPromptSize(Math.ceil(prompt.length / 4));
   }
 
   /** Load or create a session */
@@ -167,7 +172,14 @@ export class AgentEngine extends EventEmitter {
         // Check if compaction is needed
         if (this.contextEngine.needsCompaction()) {
           this.emit("context-compacting");
-          this.contextEngine.compact();
+          // Use smart (async) compaction with LLM summary if available
+          const compactResult = await this.contextEngine.compactSmart();
+          if (compactResult.tier === 2) {
+            this.emit("usage", {
+              promptTokens: 0, outputTokens: 0, iterationCount,
+              contextPercent: Math.round(this.contextEngine.utilizationPercent()),
+            });
+          }
         }
 
         // Get tool definitions for this iteration

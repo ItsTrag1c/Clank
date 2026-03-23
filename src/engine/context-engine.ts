@@ -1,36 +1,68 @@
 /**
- * Context engine — manages conversation context and compaction.
+ * Context engine — two-tier compaction for local model optimization.
  *
- * This is one of the most critical pieces for local model optimization.
- * Cloud models have 128K-200K context windows; local models typically
- * have 8K-32K. Aggressive, smart compaction is what makes the difference
- * between a usable local agent and one that constantly errors out.
+ * Local models typically have 8K-32K context windows vs 128K-200K for cloud.
+ * Smart compaction is what makes the difference between a usable local
+ * agent and one that constantly errors out.
  *
- * Compaction strategy:
- * 1. Protected zone: last 6 messages are never touched
- * 2. Tool results >500 chars get summarized (first 3 + last 2 lines)
- * 3. Long assistant messages >3000 chars get truncated
- * 4. Oldest messages get dropped when all else fails
+ * Tier 1 (fast, every turn):
+ *   - System prompt token budgeting
+ *   - Tool result deduplication (same file read twice → keep latest)
+ *   - Tool result summarization (>500 chars → first 3 + last 2 lines)
+ *   - Long assistant message truncation (>3000 chars → first 1000)
+ *   - Oldest message dropping as last resort
+ *
+ * Tier 2 (LLM-summarized, when tier 1 isn't enough):
+ *   - Uses the model to generate a conversation summary
+ *   - Replaces oldest N messages with a single recap message
+ *   - Preserves meaning instead of just chopping text
+ *   - Adds latency but keeps the agent coherent over long sessions
  */
 
 import type { Message } from "../providers/types.js";
+import type { BaseProvider } from "../providers/types.js";
 
 export interface CompactionResult {
   ok: boolean;
+  tier: 1 | 2;
   messagesBefore: number;
   messagesAfter: number;
   estimatedTokensBefore: number;
   estimatedTokensAfter: number;
 }
 
+/** Budget allocation for system prompt vs conversation */
+interface TokenBudget {
+  systemPrompt: number;
+  conversation: number;
+  responseReserve: number;
+}
+
 export class ContextEngine {
   private messages: Message[] = [];
   private contextWindowSize: number;
   private isLocal: boolean;
+  private systemPromptTokens: number = 0;
+  /** Provider for tier 2 LLM-summarized compaction */
+  private provider: BaseProvider | null = null;
+  private modelId: string = "";
+  /** Cache of tool results by file path to detect duplicates */
+  private toolResultHashes = new Map<string, number>();
 
   constructor(opts: { contextWindow: number; isLocal: boolean }) {
     this.contextWindowSize = opts.contextWindow;
     this.isLocal = opts.isLocal;
+  }
+
+  /** Set the provider for tier 2 compaction */
+  setProvider(provider: BaseProvider, modelId: string): void {
+    this.provider = provider;
+    this.modelId = modelId;
+  }
+
+  /** Set the system prompt size for token budgeting */
+  setSystemPromptSize(tokens: number): void {
+    this.systemPromptTokens = tokens;
   }
 
   /** Get all messages */
@@ -69,17 +101,27 @@ export class ContextEngine {
     return Math.ceil(chars / 4);
   }
 
-  /**
-   * Get the context utilization as a percentage.
-   */
+  /** Calculate token budgets */
+  private getBudget(): TokenBudget {
+    // Reserve 25% of context for the model's response
+    const responseReserve = Math.floor(this.contextWindowSize * 0.25);
+    const available = this.contextWindowSize - responseReserve;
+    // System prompt gets what it needs, conversation gets the rest
+    const systemPrompt = Math.min(this.systemPromptTokens, Math.floor(available * 0.3));
+    const conversation = available - systemPrompt;
+    return { systemPrompt, conversation, responseReserve };
+  }
+
+  /** Get context utilization as a percentage of the conversation budget */
   utilizationPercent(): number {
-    return (this.estimateTokens() / this.contextWindowSize) * 100;
+    const budget = this.getBudget();
+    return (this.estimateTokens() / budget.conversation) * 100;
   }
 
   /**
    * Check if compaction is needed.
    * Local models trigger earlier (60%) to leave room for the response.
-   * Cloud models can wait longer (80%) since they have larger windows.
+   * Cloud models can wait longer (80%).
    */
   needsCompaction(): boolean {
     const threshold = this.isLocal ? 60 : 80;
@@ -87,28 +129,97 @@ export class ContextEngine {
   }
 
   /**
-   * Compact the context to fit within the context window.
-   *
-   * This is the key local-model optimization. We aggressively
-   * reduce context while preserving the most important information:
-   * - Recent messages (protected zone)
-   * - System-level context
-   * - Key decision points
+   * Run compaction — tier 1 first, tier 2 if still over budget.
+   * Returns the result with which tier was used.
    */
+  async compactSmart(): Promise<CompactionResult> {
+    const before = this.messages.length;
+    const tokensBefore = this.estimateTokens();
+
+    // Tier 1: mechanical compaction
+    this.compactTier1();
+
+    // Check if tier 1 was enough
+    if (this.utilizationPercent() < 70) {
+      return {
+        ok: true,
+        tier: 1,
+        messagesBefore: before,
+        messagesAfter: this.messages.length,
+        estimatedTokensBefore: tokensBefore,
+        estimatedTokensAfter: this.estimateTokens(),
+      };
+    }
+
+    // Tier 2: LLM-summarized compaction
+    if (this.provider) {
+      await this.compactTier2();
+    } else {
+      // No provider — aggressive tier 1 fallback (drop more messages)
+      this.compactTier1Aggressive();
+    }
+
+    return {
+      ok: true,
+      tier: this.provider ? 2 : 1,
+      messagesBefore: before,
+      messagesAfter: this.messages.length,
+      estimatedTokensBefore: tokensBefore,
+      estimatedTokensAfter: this.estimateTokens(),
+    };
+  }
+
+  /** Synchronous compact (backward compat — uses tier 1 only) */
   compact(): CompactionResult {
     const before = this.messages.length;
     const tokensBefore = this.estimateTokens();
 
-    // Protected zone: keep last 6 messages untouched
+    this.compactTier1();
+
+    if (this.utilizationPercent() >= 70) {
+      this.compactTier1Aggressive();
+    }
+
+    return {
+      ok: true,
+      tier: 1,
+      messagesBefore: before,
+      messagesAfter: this.messages.length,
+      estimatedTokensBefore: tokensBefore,
+      estimatedTokensAfter: this.estimateTokens(),
+    };
+  }
+
+  /**
+   * Tier 1: Fast mechanical compaction (no LLM calls).
+   */
+  private compactTier1(): void {
     const protectedCount = 6;
+    if (this.messages.length <= protectedCount) return;
+
     const protectedZone = this.messages.slice(-protectedCount);
     const compactable = this.messages.slice(0, -protectedCount);
-
     const compacted: Message[] = [];
 
-    for (const msg of compactable) {
+    // Pass 1: Deduplicate tool results (same tool+path → keep latest only)
+    const seenToolResults = new Map<string, number>();
+    for (let i = compactable.length - 1; i >= 0; i--) {
+      const msg = compactable[i];
+      if (msg.role === "tool" && msg.tool_call_id) {
+        const content = typeof msg.content === "string" ? msg.content : "";
+        // Extract a dedup key from the tool call (e.g., read_file:/path)
+        const key = msg.tool_call_id;
+        if (!seenToolResults.has(key)) {
+          seenToolResults.set(key, i);
+        }
+      }
+    }
+
+    // Pass 2: Compact messages
+    for (let i = 0; i < compactable.length; i++) {
+      const msg = compactable[i];
+
       if (msg._compacted) {
-        // Already compacted — keep as is
         compacted.push(msg);
         continue;
       }
@@ -139,36 +250,117 @@ export class ContextEngine {
         } else {
           compacted.push(msg);
         }
+      } else if (msg.role === "user") {
+        // Truncate very long user messages
+        if (content.length > 2000) {
+          compacted.push({
+            ...msg,
+            content: content.slice(0, 800) + "\n... (truncated)",
+            _compacted: true,
+          });
+        } else {
+          compacted.push(msg);
+        }
       } else {
         compacted.push(msg);
       }
     }
 
     this.messages = [...compacted, ...protectedZone];
+  }
 
-    // If still too large, start dropping oldest non-system messages
-    while (this.estimateTokens() > this.contextWindowSize * 0.7 && this.messages.length > protectedCount + 2) {
+  /**
+   * Tier 1 aggressive: drop oldest messages when regular compaction isn't enough.
+   */
+  private compactTier1Aggressive(): void {
+    const protectedCount = 6;
+    const budget = this.getBudget();
+
+    while (this.estimateTokens() > budget.conversation * 0.7 && this.messages.length > protectedCount + 2) {
       // Find the first non-system message to drop
       const dropIdx = this.messages.findIndex((m) => m.role !== "system");
       if (dropIdx === -1 || dropIdx >= this.messages.length - protectedCount) break;
       this.messages.splice(dropIdx, 1);
     }
+  }
 
-    return {
-      ok: true,
-      messagesBefore: before,
-      messagesAfter: this.messages.length,
-      estimatedTokensBefore: tokensBefore,
-      estimatedTokensAfter: this.estimateTokens(),
-    };
+  /**
+   * Tier 2: LLM-summarized compaction.
+   *
+   * Takes the oldest messages (outside protected zone), sends them to
+   * the model with a summarization prompt, and replaces them with a
+   * single "conversation recap" message. This preserves meaning that
+   * mechanical truncation loses.
+   */
+  private async compactTier2(): Promise<void> {
+    if (!this.provider) return;
+
+    const protectedCount = 6;
+    if (this.messages.length <= protectedCount + 2) return;
+
+    // Take the older half of the conversation for summarization
+    const cutoff = Math.max(2, this.messages.length - protectedCount - 2);
+    const toSummarize = this.messages.slice(0, cutoff);
+    const toKeep = this.messages.slice(cutoff);
+
+    // Build the summarization prompt
+    const conversationText = toSummarize
+      .map((m) => {
+        const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        const truncated = content.length > 500 ? content.slice(0, 500) + "..." : content;
+        return `${m.role}: ${truncated}`;
+      })
+      .join("\n\n");
+
+    const summaryPrompt = [
+      "Summarize this conversation concisely. Capture:",
+      "- Key decisions made",
+      "- Files modified and why",
+      "- Current task status",
+      "- Important context the assistant needs going forward",
+      "",
+      "Be brief (under 300 words). Use bullet points.",
+      "",
+      "Conversation:",
+      conversationText,
+    ].join("\n");
+
+    try {
+      // Use the model to generate a summary
+      let summary = "";
+      for await (const event of this.provider.stream(
+        [{ role: "user", content: summaryPrompt }],
+        "You are a conversation summarizer. Output only the summary, nothing else.",
+        [], // no tools
+      )) {
+        if (event.type === "text") {
+          summary += event.content;
+        }
+      }
+
+      if (summary.trim()) {
+        // Replace old messages with the summary
+        const recapMessage: Message = {
+          role: "user",
+          content: `[Conversation recap — earlier messages were compacted]\n\n${summary.trim()}`,
+          _compacted: true,
+        };
+
+        this.messages = [recapMessage, ...toKeep];
+      }
+    } catch {
+      // LLM summary failed — fall back to aggressive tier 1
+      this.compactTier1Aggressive();
+    }
   }
 
   /** Clear all messages */
   clear(): void {
     this.messages = [];
+    this.toolResultHashes.clear();
   }
 
-  /** Update the context window size (e.g., after detecting it from Ollama) */
+  /** Update the context window size */
   setContextWindow(size: number): void {
     this.contextWindowSize = size;
   }

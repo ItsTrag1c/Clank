@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Read version from package.json
-let version = "1.1.0";
+let version = "1.2.0";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8"));
   version = pkg.version;
@@ -328,6 +328,15 @@ program
       console.log(`    ${name}: ${c.enabled ? "\x1b[32menabled\x1b[0m" : "\x1b[2mdisabled\x1b[0m"}`);
     }
     if (Object.keys(channels).length === 0) console.log("    (none configured)");
+  });
+
+// clank update — pull latest, rebuild, restart
+program
+  .command("update")
+  .description("Update Clank to the latest version and restart gateway")
+  .action(async () => {
+    const { runUpdate } = await import("./update.js");
+    await runUpdate();
   });
 
 // clank uninstall — remove everything
