@@ -64,6 +64,10 @@ export class GatewayServer {
   private pluginLoader: PluginLoader;
   private adapters: ChannelAdapter[] = [];
   private running = false;
+  /** Rate limiting: track message timestamps per session */
+  private rateLimiter = new Map<string, number[]>();
+  private readonly RATE_LIMIT_WINDOW = 60_000; // 1 minute
+  private readonly RATE_LIMIT_MAX = 20; // max 20 messages per minute per session
 
   constructor(config: ClankConfig) {
     this.config = config;
@@ -162,6 +166,12 @@ export class GatewayServer {
    * This is the main entry point for all non-WebSocket messages.
    */
   async handleInboundMessage(context: RouteContext, text: string): Promise<string> {
+    // Rate limit check
+    const rlKey = deriveSessionKey(context);
+    if (this.isRateLimited(rlKey)) {
+      throw new Error("Rate limited — too many messages. Wait a moment.");
+    }
+
     // Resolve which agent handles this message
     const agentId = resolveRoute(
       context,
@@ -608,6 +618,12 @@ export class GatewayServer {
       return;
     }
 
+    // Rate limiting — prevent message spam from flooding the model
+    if (this.isRateLimited(client.sessionKey)) {
+      this.sendResponse(client, frame.id, false, undefined, "Rate limited — too many messages. Wait a moment.");
+      return;
+    }
+
     try {
       const engine = await this.getOrCreateEngine(client.sessionKey, client.agentId, client.clientName);
 
@@ -624,6 +640,19 @@ export class GatewayServer {
       const msg = err instanceof Error ? err.message : String(err);
       this.sendResponse(client, frame.id, false, undefined, msg);
     }
+  }
+
+  /** Check if a session is rate limited */
+  private isRateLimited(sessionKey: string): boolean {
+    const now = Date.now();
+    const timestamps = this.rateLimiter.get(sessionKey) || [];
+
+    // Clean old entries
+    const recent = timestamps.filter((t) => now - t < this.RATE_LIMIT_WINDOW);
+    recent.push(now);
+    this.rateLimiter.set(sessionKey, recent);
+
+    return recent.length > this.RATE_LIMIT_MAX;
   }
 
   /** Cancel current request for a client */

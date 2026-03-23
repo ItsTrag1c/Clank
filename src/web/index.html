@@ -228,6 +228,8 @@
     if (f.type === 'hello') {
       setStatus(true);
       if (f.agents?.length) { currentAgent = f.agents[0].id; document.getElementById('chat-agent').textContent = f.agents[0].name; document.getElementById('chat-model').textContent = f.agents[0].model; }
+      // Load session history on connect
+      loadChatHistory();
       return;
     }
     if (f.type === 'res' && f.ok && !streaming) return;
@@ -261,6 +263,21 @@
   }
 
   // === Chat ===
+  async function loadChatHistory() {
+    try {
+      const messages = await rpc('chat.history', { sessionKey: currentSession, limit: 50 });
+      if (messages?.length) {
+        document.getElementById('chat-messages').innerHTML = '';
+        for (const msg of messages) {
+          const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+          if (msg.role === 'user' || msg.role === 'assistant') {
+            addMsg(msg.role, content, msg.role === 'assistant');
+          }
+        }
+      }
+    } catch {}
+  }
+
   function sendMessage() {
     const text = document.getElementById('input').value.trim();
     if (!text || !ws) return;
