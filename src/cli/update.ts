@@ -27,14 +27,16 @@ export async function runUpdate(): Promise<void> {
   // Step 2: Update the npm package
   console.log(dim("  Pulling latest version..."));
   try {
-    const output = execSync("npm install -g @tractorscorch/clank@latest", {
+    // --force: on Windows, npm can't overwrite its own shim files (clank.ps1,
+    // clank.cmd) while this process is running — force lets it replace them
+    const output = execSync("npm install -g @tractorscorch/clank@latest --force", {
       encoding: "utf-8",
       timeout: 120_000,
     });
     console.log(dim(`  ${output.trim()}`));
   } catch (err) {
     console.error(red(`  Update failed: ${err instanceof Error ? err.message : err}`));
-    console.error(dim("  Try manually: npm install -g @tractorscorch/clank@latest"));
+    console.error(dim("  Try manually: npm install -g @tractorscorch/clank@latest --force"));
     return;
   }
 
