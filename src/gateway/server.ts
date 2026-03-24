@@ -226,12 +226,12 @@ export class GatewayServer {
     text: string,
     callbacks: {
       onToken?: (content: string) => void;
+      onThinking?: (content: string) => void;
       onToolStart?: (name: string) => void;
       onToolResult?: (name: string, success: boolean) => void;
       onError?: (message: string) => void;
     },
   ): Promise<string> {
-    // Rate limit check
     const rlKey = deriveSessionKey(context);
     if (this.isRateLimited(rlKey)) {
       throw new Error("Rate limited — too many messages. Wait a moment.");
@@ -245,6 +245,7 @@ export class GatewayServer {
     text: string,
     callbacks: {
       onToken?: (content: string) => void;
+      onThinking?: (content: string) => void;
       onToolStart?: (name: string) => void;
       onToolResult?: (name: string, success: boolean) => void;
       onError?: (message: string) => void;
@@ -267,6 +268,11 @@ export class GatewayServer {
       const fn = (data: unknown) => callbacks.onToken!((data as { content: string }).content);
       engine.on("token", fn);
       listeners.push(["token", fn]);
+    }
+    if (callbacks.onThinking) {
+      const fn = (data: unknown) => callbacks.onThinking!((data as { content: string }).content);
+      engine.on("thinking", fn);
+      listeners.push(["thinking", fn]);
     }
     if (callbacks.onToolStart) {
       const fn = (data: unknown) => callbacks.onToolStart!((data as { name: string }).name);
@@ -356,7 +362,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.7.0",
+        version: "1.7.1",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -492,7 +498,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.7.0",
+      version: "1.7.1",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,

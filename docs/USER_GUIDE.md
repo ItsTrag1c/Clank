@@ -6,19 +6,19 @@ How to use Clank day-to-day. For installation, see [INSTALL.md](INSTALL.md).
 
 ## The Basics
 
-Clank is a gateway — one daemon runs in the background, and you connect to it from any interface. Start it with:
+Clank is a gateway — one daemon runs in the background, and you connect from any interface:
 
 ```bash
 clank
 ```
 
-This starts the gateway (Telegram/Discord stay alive) and opens the TUI. You can also use:
+This starts the gateway and opens the TUI.
 
 | Interface | Command | When to use |
 |-----------|---------|-------------|
 | **TUI** | `clank` or `clank tui` | Daily driver — rich terminal with streaming |
 | **CLI** | `clank chat` | Quick direct chat, no gateway needed |
-| **Web UI** | `clank chat --web` | Browser-based dashboard with all panels |
+| **Web UI** | `clank dashboard` | Browser-based dashboard with all panels |
 | **Telegram** | Message your bot | On the go, from your phone |
 | **Discord** | Message in server | Team/community access |
 
@@ -28,23 +28,20 @@ All interfaces share sessions. Start a conversation in TUI, continue it from Tel
 
 ## Talking to Your Agent
 
-Just type naturally. Clank understands context:
+Just type naturally:
 
 ```
 you > Read the README and summarize the project structure
-
 you > Fix the failing test in auth.test.ts
-
 you > Search for all TODO comments in the codebase
-
 you > Install express and create a basic server
 ```
 
-The agent reads files, writes code, runs commands, and uses tools automatically. You'll see tool execution in real-time.
+The agent reads files, writes code, runs commands, and uses tools automatically.
 
 ### Tool Confirmations
 
-Risky operations (writing files, running commands) ask for confirmation:
+Risky operations ask for confirmation in the TUI/Web UI:
 
 ```
   Confirm: Run: npm install express [y/n/always]
@@ -54,7 +51,9 @@ Risky operations (writing files, running commands) ask for confirmation:
 - `n` — deny
 - `always` — auto-approve this tool for the rest of the session
 
-Configure auto-approve levels in config:
+**Telegram and Discord** auto-approve all tools (no interactive confirmation UI).
+
+Configure in config:
 
 ```json5
 {
@@ -99,18 +98,48 @@ you > !docker ps
 
 ---
 
+## Telegram Commands
+
+Commands are registered in Telegram's bot menu — they appear when you type `/`.
+
+| Command | Action |
+|---------|--------|
+| `/help` | Show all commands |
+| `/new` | Start a fresh session |
+| `/reset` | Clear current session history |
+| `/status` | Model, agents, tasks, uptime |
+| `/agents` | List agents with their models |
+| `/agent <name>` | Switch to a different agent |
+| `/model` | Show model + fallback chain |
+| `/tasks` | Show background tasks with short IDs |
+| `/kill <id>` | Kill a specific task (+ children) |
+| `/killall` | Kill all running tasks |
+| `/think` | Toggle thinking display per-chat |
+| `/version` | Show Clank version |
+
+### Telegram Features
+
+- **Streaming** — responses stream in real-time via message editing
+- **Tool indicators** — when the agent uses tools, you see emoji indicators above the response (📄 read_file, 💻 bash, 🔍 search, etc.)
+- **Thinking display** — toggle with `/think` to see the model's reasoning process
+- **Voice messages** — send a voice message and get a voice reply (requires Whisper STT + ElevenLabs TTS)
+- **Photos** — send images for the agent to describe or analyze
+- **Documents** — upload files for the agent to read and process (max 10MB)
+
+---
+
 ## Web UI
 
-Open with `clank chat --web` or `clank dashboard`.
+Open with `clank dashboard` or `clank chat --web`.
 
 ### Panels
 
 | Panel | What it does |
 |-------|-------------|
-| **Chat** | Send messages, see streaming responses, tool cards, thinking blocks |
+| **Chat** | Send messages, see streaming responses, tool cards, collapsible thinking blocks |
 | **Agents** | View configured agents, their models, and status |
-| **Sessions** | Browse all sessions, switch between them, delete old ones |
-| **Config** | Edit config.json5 directly in the browser, save to apply |
+| **Sessions** | Browse all sessions, switch between them |
+| **Config** | Edit config.json5 directly in the browser |
 | **Pipelines** | View pipeline definitions and execution history |
 | **Cron** | View and manage scheduled jobs |
 | **Logs** | Live log output with level coloring |
@@ -118,15 +147,19 @@ Open with `clank chat --web` or `clank dashboard`.
 
 ---
 
-## Multi-Agent
+## Multi-Agent Setup
 
-Create named agents with different models and roles:
+Create named agents with different models, workspaces, and tools:
 
 ```json5
 {
   agents: {
     defaults: {
-      model: { primary: "ollama/qwen3.5" }
+      model: { primary: "ollama/qwen3.5" },
+      subagents: {
+        maxConcurrent: 8,   // max simultaneous background tasks
+        maxSpawnDepth: 1     // 0 = main only, 1 = one level of sub-agents
+      }
     },
     list: [
       {
@@ -136,9 +169,15 @@ Create named agents with different models and roles:
         workspace: "~/Projects"
       },
       {
+        id: "researcher",
+        name: "Researcher",
+        model: { primary: "anthropic/claude-sonnet-4-6" },
+        tools: { allow: ["web_search", "web_fetch", "read_file"] }
+      },
+      {
         id: "writer",
         name: "Writer",
-        model: { primary: "anthropic/claude-sonnet-4-6" },
+        model: { primary: "openrouter/anthropic/claude-sonnet-4-6" },
         toolTier: "core"
       }
     ]
@@ -146,29 +185,109 @@ Create named agents with different models and roles:
 }
 ```
 
-Or just tell your agent: *"Create a new agent called Coder that uses Qwen 3.5 for my Projects folder"*
+Or tell your agent: *"Create a new agent called Researcher that uses Claude for web research"*
 
-Switch agents:
-- **TUI:** `/agent coder`
-- **Telegram:** `/agent coder`
+### Switching Agents
+
+- **TUI:** `/agent researcher`
+- **Telegram:** `/agent researcher`
 - **Web UI:** Agents panel
 
-### Routing
+### Per-Agent Model Assignment
 
-Route messages to specific agents based on channel:
+Each agent can use any configured provider:
 
 ```json5
 {
-  // Telegram group → Writer agent
-  channels: {
-    telegram: {
-      groups: {
-        "-123456": { requireMention: true }
+  id: "fast-coder",
+  model: { primary: "ollama/qwen3.5" }       // Local, fast
+},
+{
+  id: "deep-thinker",
+  model: { primary: "anthropic/claude-sonnet-4-6" }  // Cloud, capable
+},
+{
+  id: "budget",
+  model: { primary: "openrouter/meta-llama/llama-3.1-70b" }  // OpenRouter
+}
+```
+
+---
+
+## Background Tasks (Sub-Agents)
+
+The main agent can spawn tasks on sub-agents that run independently in the background.
+
+### How It Works
+
+1. You ask the main agent to do something in the background
+2. The agent uses `spawn_task` to create a sub-agent
+3. The sub-agent runs its task independently
+4. You continue chatting with the main agent
+5. When the sub-agent finishes, results are delivered to the main agent on your next message
+
+### Example
+
+```
+you > Research the latest Node.js security best practices
+      in the background using the researcher agent
+
+agent > Task spawned successfully.
+        Task ID: a3f2b1c9
+        Agent: researcher
+        The task is running in the background. Results will
+        be delivered when it completes.
+
+you > While that's running, help me refactor this function...
+
+agent > [Background task completed results appear here on next message]
+```
+
+### Task Control
+
+The main agent can control running tasks:
+
+| Action | What it does |
+|--------|-------------|
+| **spawn** | Start a new background task |
+| **kill** | Cancel a running task (cascades to children) |
+| **steer** | Kill and re-spawn with new instructions |
+| **message** | Send a message to a running child |
+| **status** | Check a specific task |
+| **list** | See all tasks |
+
+### Telegram Task Management
+
+```
+/tasks     — See all tasks with short IDs
+/kill abc1 — Kill task by short ID
+/killall   — Kill all running tasks
+```
+
+### Depth Control
+
+Sub-agents can optionally spawn their own sub-agents (orchestrator pattern):
+
+```json5
+{
+  agents: {
+    defaults: {
+      subagents: {
+        maxSpawnDepth: 2,    // Allow orchestrator → worker
+        maxConcurrent: 8     // Max 8 simultaneous tasks
       }
     }
   }
 }
 ```
+
+- **Depth 0** = main agent (can always spawn)
+- **Depth 1** = first-level sub-agent (can spawn if maxSpawnDepth > 1)
+- **Depth N** = leaf agent (cannot spawn further)
+
+### GPU Contention
+
+When a background task runs on the same local model as the main agent, they share the GPU. Local models queue requests, so both will work but slower. For best results, use a cloud provider for sub-agents when your main agent is local.
 
 ---
 
@@ -177,12 +296,10 @@ Route messages to specific agents based on channel:
 Create recurring tasks:
 
 ```bash
-clank cron add --name "Daily summary" --schedule "24h" --prompt "Summarize what changed in the codebase today"
+clank cron add --name "Daily summary" --schedule "24h" --prompt "Summarize what changed today"
 ```
 
-Or tell your agent: *"Check my email every hour and notify me on Telegram if anything urgent"*
-
-Manage jobs:
+Or tell your agent: *"Check for updates every hour and notify me on Telegram"*
 
 ```bash
 clank cron list
@@ -191,47 +308,34 @@ clank cron remove <id>
 
 ---
 
-## Pipelines
-
-Chain agents together for complex workflows:
-
-```yaml
-# In config
-pipelines:
-  code-review:
-    steps:
-      - agent: coder
-        action: "Read the PR diff and identify issues"
-      - agent: writer
-        action: "Write review comments in a professional tone"
-```
-
-Each step's output becomes the next step's input context.
-
----
-
 ## Memory
 
-Clank remembers across sessions:
-
-- **Workspace files** — SOUL.md (personality), USER.md (about you), MEMORY.md (persistent notes)
-- **Agent memory** — TF-IDF matched, decays over time, categorized (identity, knowledge, lessons, context)
-- **Project memory** — `.clank.md` in any project root for per-project context
+Clank remembers across sessions through several mechanisms:
 
 ### Workspace Files
 
 | File | Purpose |
 |------|---------|
 | `SOUL.md` | Agent personality and behavior rules |
-| `USER.md` | Information about you (name, timezone, preferences) |
+| `USER.md` | Information about you |
 | `IDENTITY.md` | The agent's name, vibe, emoji |
 | `MEMORY.md` | Persistent notes and learnings |
 | `AGENTS.md` | Agent definitions |
 | `TOOLS.md` | Tool access configuration |
-| `BOOTSTRAP.md` | First-conversation script (delete after setup) |
+| `BOOTSTRAP.md` | First-conversation script (auto-deleted) |
 | `HEARTBEAT.md` | Periodic check definitions |
 
-Edit these files to customize your agent's behavior. The agent can also edit them through conversation.
+Edit these files to customize behavior. The agent can also edit them through conversation.
+
+### Project Memory
+
+Put a `.clank.md` in any project root — the agent reads it automatically for project-specific context.
+
+### Agent Memory
+
+- TF-IDF matched, decays over time
+- Categorized: identity, knowledge, lessons, context
+- Auto-persists: "remember X" commands, corrections, preferences
 
 ---
 
@@ -240,7 +344,6 @@ Edit these files to customize your agent's behavior. The agent can also edit the
 Extend Clank with local plugins:
 
 ```bash
-# Install a plugin
 npm install clank-plugin-docker
 
 # Or put it in the plugins directory
@@ -262,8 +365,6 @@ Plugin manifest (`clank-plugin.json`):
   }]
 }
 ```
-
-No marketplace — plugins are local directories or npm packages.
 
 ---
 
@@ -287,11 +388,16 @@ Config file: `~/.clank/config.json5` (or `%APPDATA%\Clank\config.json5` on Windo
         primary: "ollama/qwen3.5",
         fallbacks: ["anthropic/claude-sonnet-4-6"]
       },
-      workspace: "~/.clank/workspace",
-      toolTier: "auto",      // "full", "core", or "auto"
-      temperature: 0.7
+      toolTier: "auto",
+      temperature: 0.7,
+      subagents: {
+        maxConcurrent: 8,
+        maxSpawnDepth: 1
+      }
     },
-    list: []
+    list: [
+      // Custom agents go here
+    ]
   },
 
   // Providers
@@ -300,7 +406,9 @@ Config file: `~/.clank/config.json5` (or `%APPDATA%\Clank\config.json5` on Windo
       ollama: { baseUrl: "http://127.0.0.1:11434" },
       anthropic: { apiKey: "..." },
       openai: { apiKey: "..." },
-      google: { apiKey: "..." }
+      google: { apiKey: "..." },
+      openrouter: { apiKey: "...", baseUrl: "https://openrouter.ai/api/v1" },
+      opencode: { apiKey: "...", baseUrl: "https://opencode.ai/zen" }
     }
   },
 
@@ -320,8 +428,11 @@ Config file: `~/.clank/config.json5` (or `%APPDATA%\Clank\config.json5` on Windo
     webSearch: { enabled: true, provider: "brave", apiKey: "..." }
   },
 
-  // Safety
-  safety: { confirmExternal: true }
+  // Integrations
+  integrations: {
+    elevenlabs: { enabled: true, apiKey: "...", voiceId: "..." },
+    whisper: { enabled: true, provider: "groq", apiKey: "..." }
+  }
 }
 ```
 
@@ -329,13 +440,37 @@ Supports `${ENV_VAR}` substitution for secrets.
 
 ---
 
+## CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `clank` | Start gateway + TUI |
+| `clank chat` | Direct CLI chat |
+| `clank chat --web` | Open Web UI |
+| `clank gateway start\|stop\|restart\|status` | Manage gateway |
+| `clank setup` | Run setup wizard |
+| `clank setup --advanced` | Full control setup |
+| `clank fix` | Run diagnostics |
+| `clank models list` | List available models |
+| `clank agents list` | List configured agents |
+| `clank daemon install\|uninstall\|status` | System service |
+| `clank tui` | Open TUI |
+| `clank dashboard` | Open Web UI |
+| `clank cron list\|add\|remove` | Manage cron jobs |
+| `clank auth login\|status\|logout` | Manage OAuth credentials |
+| `clank update` | Update to latest version |
+| `clank uninstall` | Remove everything |
+
+---
+
 ## Tips
 
-- **First conversation** — if BOOTSTRAP.md exists, the agent starts by introducing itself and learning about you. After that, it deletes the file.
-- **Project context** — put a `.clank.md` in any project root. The agent reads it automatically.
-- **Tool tiering** — set `toolTier: "core"` for smaller models (reduces confusion), `"auto"` for smart middle ground, `"full"` for capable models.
-- **Multiple terminals** — open as many TUI/CLI sessions as you want. They all connect to the same gateway.
-- **Self-config** — instead of editing config, just tell your agent: *"Add Brave search"*, *"Connect my Telegram bot"*, *"Create a cron job"*.
+- **Workspace = cwd** — the agent works in whatever directory you launch `clank` from
+- **Full system access** — the agent can read/write anywhere. Run on dedicated hardware.
+- **Project context** — put a `.clank.md` in any project root for per-project context
+- **Tool tiering** — `"core"` for smaller models, `"auto"` for middle ground, `"full"` for capable models
+- **Multiple terminals** — open as many TUI/CLI sessions as you want, all share the same gateway
+- **Self-config** — tell your agent: *"Add Brave search"*, *"Connect Telegram"*, *"Create a cron job"*
 
 ---
 

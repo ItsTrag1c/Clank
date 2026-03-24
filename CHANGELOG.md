@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.7.1] — 2026-03-23
+
+### Added
+- **Telegram bot menu** — all commands registered with Telegram via `setMyCommands()`, appear when you type `/`
+- **Tool indicators with emojis** — when the agent uses tools, Telegram shows emoji indicators above the response (📄 read\_file, 💻 bash, 🔍 search, 🌐 web, ✏️ edit, 🚀 spawn, etc.)
+- **`/kill <id>` command** — kill a specific background task by short ID (first 8 chars), cascades to children
+- **`/killall` command** — kill all running background tasks
+- **`/version` command** — show Clank version
+- **`/think` per-chat toggle** — actually toggles thinking display per Telegram chat (was a no-op before)
+
+### Changed
+- **`/tasks` shows short IDs** — each task now shows its 8-char ID for use with `/kill`
+- **`/status` shows more info** — model, agents, running tasks, thinking state, uptime
+- **`/agents` shows default agent** — includes the default agent and its model, not just custom agents
+- **`/model` shows fallbacks** — displays the full fallback chain
+- **`/agent <name>` works** — actually switches agent by resetting session (was a stub)
+- **Comprehensive docs** — full rewrite of Install Guide and User Guide for v1.7.x features
+- **Website docs page** — new /docs tab on clanksuite.dev with provider table, command reference, and quick start
+
+---
+
 ## [1.7.0] — 2026-03-23
 
 ### Added

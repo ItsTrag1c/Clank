@@ -1,19 +1,23 @@
 /**
  * Telegram channel adapter.
  *
- * Built on grammY. Refactored from the original Clank Telegram bot
- * into the ChannelAdapter pattern. Supports:
+ * Built on grammY. Supports:
  * - DM and group chats with separate allowlists
  * - @mention checking in groups
  * - Streaming via message editing
- * - Inline keyboard confirmations
- * - Media group coalescing
+ * - Voice messages (STT → agent → TTS)
+ * - Photo and document handling
+ * - Slash commands with Telegram bot menu
+ * - Per-chat message queue
  */
 
 import { Bot } from "grammy";
 import { ChannelAdapter, type InboundMessage, type ReplyPayload } from "./base.js";
 import type { GatewayServer } from "../gateway/server.js";
 import type { ClankConfig } from "../config/index.js";
+
+/** Per-chat state for thinking display toggle */
+const thinkingEnabled = new Map<number, boolean>();
 
 export class TelegramAdapter extends ChannelAdapter {
   readonly id = "telegram";
@@ -22,6 +26,7 @@ export class TelegramAdapter extends ChannelAdapter {
   private config: ClankConfig | null = null;
   private bot: Bot | null = null;
   private running = false;
+  private startedAt: number = 0;
 
   init(gateway: GatewayServer, config: ClankConfig): void {
     this.gateway = gateway;
@@ -35,9 +40,27 @@ export class TelegramAdapter extends ChannelAdapter {
       return;
     }
 
+    this.startedAt = Date.now();
+
     try {
       this.bot = new Bot(telegramConfig.botToken);
       const bot = this.bot as Bot;
+
+      // Register bot commands with Telegram so they show up in the / menu
+      await bot.api.setMyCommands([
+        { command: "help", description: "Show available commands" },
+        { command: "new", description: "Start a new session" },
+        { command: "reset", description: "Clear current session" },
+        { command: "status", description: "Agent status and info" },
+        { command: "agents", description: "List available agents" },
+        { command: "tasks", description: "Show background tasks" },
+        { command: "kill", description: "Kill a background task" },
+        { command: "killall", description: "Kill all running tasks" },
+        { command: "model", description: "Show current model" },
+        { command: "sessions", description: "List recent sessions" },
+        { command: "think", description: "Toggle thinking display" },
+        { command: "version", description: "Show Clank version" },
+      ]).catch(() => {}); // Non-critical if this fails
 
       // Track startup time — messages older than this are stale
       const startupTime = Math.floor(Date.now() / 1000);
@@ -98,17 +121,19 @@ export class TelegramAdapter extends ChannelAdapter {
             await ctx.api.sendChatAction(chatId, "typing");
 
             // Keep sending "typing" every 4s while the model processes
-            // (thinking models can take a long time before producing content)
             const typingInterval = setInterval(() => {
               bot.api.sendChatAction(chatId, "typing").catch(() => {});
             }, 4000);
 
             // Streaming: send initial message then edit as tokens arrive
             let streamMsgId: number | null = null;
-            let sendingInitial = false; // Guard against duplicate initial sends
+            let sendingInitial = false;
             let accumulated = "";
+            let thinkingText = "";
             let lastEditTime = 0;
-            const EDIT_INTERVAL = 800; // ms between edits (Telegram rate limit)
+            const EDIT_INTERVAL = 800;
+            const showThinking = thinkingEnabled.get(chatId) ?? false;
+            let toolIndicators: Array<{ name: string; done?: boolean }> = [];
 
             const response = await this.gateway.handleInboundMessageStreaming(
               {
@@ -122,40 +147,48 @@ export class TelegramAdapter extends ChannelAdapter {
                   accumulated += content;
                   const now = Date.now();
 
-                  // Send initial message on first tokens (only once)
                   if (!streamMsgId && !sendingInitial && accumulated.length > 20) {
                     sendingInitial = true;
-                    bot.api.sendMessage(chatId, accumulated + " ▍").then((sent) => {
+                    const display = buildStreamDisplay(accumulated, thinkingText, toolIndicators, showThinking);
+                    bot.api.sendMessage(chatId, display + " ▍").then((sent) => {
                       streamMsgId = sent.message_id;
                       lastEditTime = now;
                     }).catch(() => {});
                     return;
                   }
 
-                  // Edit message at intervals (respect Telegram rate limits)
                   if (streamMsgId && now - lastEditTime > EDIT_INTERVAL) {
                     lastEditTime = now;
-                    const display = accumulated.length > 4000
-                      ? accumulated.slice(-3900) + " ▍"
-                      : accumulated + " ▍";
-                    bot.api.editMessageText(chatId, streamMsgId, display).catch(() => {});
+                    const display = buildStreamDisplay(accumulated, thinkingText, toolIndicators, showThinking);
+                    const truncated = display.length > 4000
+                      ? display.slice(-3900) + " ▍"
+                      : display + " ▍";
+                    bot.api.editMessageText(chatId, streamMsgId, truncated).catch(() => {});
                   }
                 },
+                onThinking: (content: string) => {
+                  thinkingText += content;
+                },
                 onToolStart: (name: string) => {
-                  // Show tool indicator if no streaming message yet
-                  if (!streamMsgId) {
+                  toolIndicators.push({ name });
+                  if (streamMsgId) {
+                    const display = buildStreamDisplay(accumulated, thinkingText, toolIndicators, showThinking);
+                    bot.api.editMessageText(chatId, streamMsgId, display + " ▍").catch(() => {});
+                  } else {
                     bot.api.sendChatAction(chatId, "typing").catch(() => {});
                   }
                 },
+                onToolResult: (name: string, success: boolean) => {
+                  const tool = toolIndicators.find((t) => t.name === name && t.done === undefined);
+                  if (tool) tool.done = success;
+                },
                 onError: (message: string) => {
-                  bot.api.sendMessage(chatId, `Error: ${message.slice(0, 200)}`).catch(() => {});
+                  bot.api.sendMessage(chatId, `⚠️ ${message.slice(0, 200)}`).catch(() => {});
                 },
               },
             );
 
-            // Final edit with complete response (remove cursor)
-            // If sendingInitial is true but streamMsgId isn't set yet, the
-            // initial sendMessage is still in flight — wait for it briefly
+            // Final edit with complete response
             if (sendingInitial && !streamMsgId) {
               await new Promise<void>((r) => {
                 const check = setInterval(() => {
@@ -166,13 +199,14 @@ export class TelegramAdapter extends ChannelAdapter {
             }
 
             if (streamMsgId && response) {
-              const finalText = response.length > 4000
-                ? response.slice(0, 3950) + "\n... (truncated)"
-                : response;
+              const display = buildFinalDisplay(response, thinkingText, toolIndicators, showThinking);
+              const finalText = display.length > 4000
+                ? display.slice(0, 3950) + "\n... (truncated)"
+                : display;
               await bot.api.editMessageText(chatId, streamMsgId, finalText).catch(() => {});
             } else if (response && !streamMsgId) {
-              // Never started streaming — send full response
-              const chunks = splitMessage(response, 4000);
+              const display = buildFinalDisplay(response, thinkingText, toolIndicators, showThinking);
+              const chunks = splitMessage(display, 4000);
               for (const chunk of chunks) {
                 await ctx.api.sendMessage(chatId, chunk);
               }
@@ -180,14 +214,12 @@ export class TelegramAdapter extends ChannelAdapter {
             clearInterval(typingInterval);
             console.log(`  Telegram: response complete (${response?.length || 0} chars)`);
           } catch (err: unknown) {
-            clearInterval(typingInterval);
             const errMsg = err instanceof Error ? err.message : String(err);
             console.error(`  Telegram: message handler error — ${errMsg}`);
-            await ctx.api.sendMessage(chatId, `Error: ${errMsg.slice(0, 200)}`).catch(() => {});
+            await ctx.api.sendMessage(chatId, `⚠️ Error: ${errMsg.slice(0, 200)}`).catch(() => {});
           }
         };
 
-        // Chain onto the existing queue for this chat
         const prev = chatLocks.get(chatId) || Promise.resolve();
         const next = prev.then(processMessage).catch((err) => {
           console.error(`  Telegram: queue error — ${err instanceof Error ? err.message : err}`);
@@ -201,7 +233,6 @@ export class TelegramAdapter extends ChannelAdapter {
         const chatId = msg.chat.id;
         const userId = msg.from?.id;
 
-        // Same permission check
         if (telegramConfig.allowFrom && telegramConfig.allowFrom.length > 0) {
           const username = msg.from?.username ? `@${msg.from.username}` : "";
           const userIdStr = String(userId || "");
@@ -214,7 +245,7 @@ export class TelegramAdapter extends ChannelAdapter {
           if (!isAllowed) return;
         }
 
-        if (msg.date < startupTime - 30) return; // Drop stale
+        if (msg.date < startupTime - 30) return;
 
         const processVoice = async () => {
           if (!this.gateway || !this.config) return;
@@ -222,21 +253,19 @@ export class TelegramAdapter extends ChannelAdapter {
           try {
             await ctx.api.sendChatAction(chatId, "typing");
 
-            // Download the voice file
             const file = await ctx.api.getFile(msg.voice.file_id);
             const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${file.file_path}`;
             const res = await fetch(fileUrl);
-            if (!res.ok) { await ctx.api.sendMessage(chatId, "Error: could not download voice message"); return; }
+            if (!res.ok) { await ctx.api.sendMessage(chatId, "⚠️ Could not download voice message"); return; }
             const audioBuffer = Buffer.from(await res.arrayBuffer());
 
-            // Transcribe
             const { STTEngine } = await import("../voice/index.js");
             const { loadConfig } = await import("../config/index.js");
             const config = await loadConfig();
             const stt = new STTEngine(config);
 
             if (!stt.isAvailable()) {
-              await ctx.api.sendMessage(chatId, "Voice messages require speech-to-text. Set up Whisper: /help");
+              await ctx.api.sendMessage(chatId, "Voice messages require speech-to-text. Configure Whisper in settings.");
               return;
             }
 
@@ -246,7 +275,6 @@ export class TelegramAdapter extends ChannelAdapter {
               return;
             }
 
-            // Send transcription through the agent
             const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
             const response = await this.gateway.handleInboundMessage(
               { channel: "telegram", peerId: chatId, peerKind: isGroup ? "group" : "dm" },
@@ -254,12 +282,10 @@ export class TelegramAdapter extends ChannelAdapter {
             );
 
             if (response) {
-              // Check if TTS is available — reply with voice if so
               const { TTSEngine } = await import("../voice/index.js");
               const tts = new TTSEngine(config);
 
               if (tts.isAvailable() && response.length < 2000) {
-                // Use per-agent voice ID if configured
                 const agentVoice = config.agents.list.find((a: any) => a.voiceId)?.voiceId;
                 const audio = await tts.synthesize(response, { voiceId: agentVoice });
                 if (audio) {
@@ -269,7 +295,6 @@ export class TelegramAdapter extends ChannelAdapter {
                 }
               }
 
-              // Fall back to text
               const chunks = splitMessage(response, 4000);
               for (const chunk of chunks) {
                 await ctx.api.sendMessage(chatId, chunk);
@@ -277,7 +302,7 @@ export class TelegramAdapter extends ChannelAdapter {
             }
           } catch (err: unknown) {
             const errMsg = err instanceof Error ? err.message : String(err);
-            await ctx.api.sendMessage(chatId, `Error: ${errMsg.slice(0, 200)}`);
+            await ctx.api.sendMessage(chatId, `⚠️ Error: ${errMsg.slice(0, 200)}`);
           }
         };
 
@@ -286,13 +311,12 @@ export class TelegramAdapter extends ChannelAdapter {
         chatLocks.set(chatId, next);
       });
 
-      // Handle photo messages — describe via vision model or save for agent
+      // Handle photo messages
       bot.on("message:photo", async (ctx) => {
         const msg = ctx.message;
         const chatId = msg.chat.id;
         if (msg.date < startupTime - 30) return;
 
-        // Permission check (same as text)
         if (telegramConfig.allowFrom && telegramConfig.allowFrom.length > 0) {
           const username = msg.from?.username ? `@${msg.from.username}` : "";
           const userIdStr = String(msg.from?.id || "");
@@ -303,7 +327,6 @@ export class TelegramAdapter extends ChannelAdapter {
         const processPhoto = async () => {
           if (!this.gateway) return;
           try {
-            // Get the largest photo
             const photo = msg.photo[msg.photo.length - 1];
             const file = await bot.api.getFile(photo.file_id);
             const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${file.file_path}`;
@@ -311,7 +334,6 @@ export class TelegramAdapter extends ChannelAdapter {
             const caption = msg.caption || "";
             const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
 
-            // Route to agent with image context
             const response = await this.gateway.handleInboundMessage(
               { channel: "telegram", peerId: chatId, peerKind: isGroup ? "group" : "dm" },
               `[Image received: ${fileUrl}]${caption ? ` Caption: ${caption}` : ""}\n\nDescribe or analyze the image if you can, or acknowledge it.`,
@@ -322,7 +344,7 @@ export class TelegramAdapter extends ChannelAdapter {
               for (const chunk of chunks) await ctx.api.sendMessage(chatId, chunk);
             }
           } catch (err: unknown) {
-            await ctx.api.sendMessage(chatId, `Error: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
+            await ctx.api.sendMessage(chatId, `⚠️ Error: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
           }
         };
 
@@ -330,7 +352,7 @@ export class TelegramAdapter extends ChannelAdapter {
         chatLocks.set(chatId, prev.then(processPhoto).catch(() => {}));
       });
 
-      // Handle document/file messages — save for agent use
+      // Handle document/file messages
       bot.on("message:document", async (ctx) => {
         const msg = ctx.message;
         const chatId = msg.chat.id;
@@ -349,13 +371,11 @@ export class TelegramAdapter extends ChannelAdapter {
             const doc = msg.document;
             if (!doc) return;
 
-            // Security: limit file size (10MB)
             if (doc.file_size && doc.file_size > 10 * 1024 * 1024) {
               await ctx.api.sendMessage(chatId, "File too large (max 10MB).");
               return;
             }
 
-            // Download and save to temp
             const file = await bot.api.getFile(doc.file_id);
             const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${file.file_path}`;
             const res = await fetch(fileUrl);
@@ -364,7 +384,6 @@ export class TelegramAdapter extends ChannelAdapter {
             const { writeFile: wf } = await import("node:fs/promises");
             const { join } = await import("node:path");
             const { tmpdir } = await import("node:os");
-            // Sanitize filename to prevent path traversal
             const safeName = (doc.file_name || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
             const savePath = join(tmpdir(), `clank-upload-${Date.now()}-${safeName}`);
             await wf(savePath, Buffer.from(await res.arrayBuffer()));
@@ -382,7 +401,7 @@ export class TelegramAdapter extends ChannelAdapter {
               for (const chunk of chunks) await ctx.api.sendMessage(chatId, chunk);
             }
           } catch (err: unknown) {
-            await ctx.api.sendMessage(chatId, `Error: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
+            await ctx.api.sendMessage(chatId, `⚠️ Error: ${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
           }
         };
 
@@ -390,7 +409,6 @@ export class TelegramAdapter extends ChannelAdapter {
         chatLocks.set(chatId, prev.then(processDoc).catch(() => {}));
       });
 
-      // bot.start() is blocking (resolves when bot stops) — run it without await
       bot.start({
         onStart: () => {
           this.running = true;
@@ -417,55 +435,99 @@ export class TelegramAdapter extends ChannelAdapter {
   /** Handle slash commands from Telegram */
   private async handleCommand(text: string, chatId: number, isGroup: boolean): Promise<string | null> {
     const [cmd, ...args] = text.slice(1).split(/\s+/);
-    const command = cmd.replace(/@\w+$/, ""); // Strip @botname suffix
+    const command = cmd.replace(/@\w+$/, "");
 
     switch (command) {
       case "help":
       case "start":
         return [
-          "*Clank Commands*",
+          "🔧 *Clank Commands*",
           "",
-          "/help — Show this help",
-          "/status — Agent and model info",
-          "/agents — List available agents",
-          "/agent <name> — Switch to a different agent",
-          "/sessions — List recent sessions",
+          "💬 *Chat*",
           "/new — Start a new session",
-          "/reset — Clear current session",
+          "/reset — Clear current session history",
+          "",
+          "📊 *Info*",
+          "/status — Agent, model, and session info",
+          "/agents — List available agents",
           "/model — Show current model",
           "/tasks — Show background tasks",
+          "/kill <id> — Kill a background task",
+          "/killall — Kill all running tasks",
+          "/version — Show Clank version",
+          "",
+          "⚙️ *Settings*",
+          "/agent <name> — Switch to a different agent",
           "/think — Toggle thinking display",
+          "",
+          "_Send any message to chat with the agent._",
         ].join("\n");
 
       case "status": {
         const cfg = this.config;
         const model = cfg?.agents?.defaults?.model?.primary || "unknown";
-        const agents = cfg?.agents?.list?.length || 0;
+        const agentCount = cfg?.agents?.list?.length || 0;
+        const tasks = this.gateway?.getTaskRegistry()?.list() || [];
+        const runningTasks = tasks.filter((t) => t.status === "running").length;
+        const uptime = Math.round((Date.now() - this.startedAt) / 60000);
+        const thinking = thinkingEnabled.get(chatId) ? "on" : "off";
+
         return [
-          "*Status*",
-          `Model: \`${model}\``,
-          `Agents: ${agents} configured`,
-          `Chat: ${isGroup ? "group" : "DM"} (${chatId})`,
+          "📊 *Status*",
+          "",
+          `*Model:* \`${model}\``,
+          `*Agents:* ${agentCount || 1} configured`,
+          `*Tasks:* ${runningTasks} running / ${tasks.length} total`,
+          `*Thinking:* ${thinking}`,
+          `*Chat:* ${isGroup ? "group" : "DM"} (\`${chatId}\`)`,
+          `*Uptime:* ${uptime} min`,
         ].join("\n");
       }
 
       case "agents": {
         const list = this.config?.agents?.list || [];
-        if (list.length === 0) return "No custom agents configured. Using default agent.";
-        return "*Agents:*\n" + list.map((a) =>
-          `• *${a.name || a.id}* — \`${a.model?.primary || "default"}\``
-        ).join("\n");
+        const defaultModel = this.config?.agents?.defaults?.model?.primary || "unknown";
+        if (list.length === 0) {
+          return `📋 *Agents*\n\n• *default* — \`${defaultModel}\`\n\n_No custom agents. Configure in config.json5._`;
+        }
+        const lines = list.map((a) =>
+          `• *${a.name || a.id}* — \`${a.model?.primary || defaultModel}\``
+        );
+        return `📋 *Agents*\n\n• *default* — \`${defaultModel}\`\n${lines.join("\n")}\n\n_Switch with /agent <name>_`;
       }
 
-      case "agent":
-        if (args[0]) {
-          return `Agent switching via Telegram coming soon. Use the config tool in chat: "switch to agent ${args[0]}"`;
+      case "agent": {
+        if (!args[0]) return "Usage: /agent <name>\n\nSee /agents for available agents.";
+        const targetId = args[0].toLowerCase();
+        const list = this.config?.agents?.list || [];
+        const found = list.find((a) => a.id.toLowerCase() === targetId || (a.name || "").toLowerCase() === targetId);
+
+        if (!found && targetId !== "default") {
+          return `Agent "${args[0]}" not found. See /agents for available agents.`;
         }
-        return "Usage: /agent <name>";
+
+        // Reset session to switch agent — the new session key will route to the new agent
+        if (this.gateway) {
+          await this.gateway.resetSession({
+            channel: "telegram",
+            peerId: chatId,
+            peerKind: isGroup ? "group" : "dm",
+          });
+        }
+        const name = found ? (found.name || found.id) : "default";
+        return `Switched to agent *${name}*. Session reset — send a message to begin.`;
+      }
 
       case "sessions": {
-        if (!this.gateway) return "Gateway not connected";
-        return "Use /new to start a fresh session, or /reset to clear the current one.";
+        if (!this.gateway) return "Gateway not connected.";
+        return [
+          "📁 *Sessions*",
+          "",
+          "/new — Start a fresh session",
+          "/reset — Clear current session history",
+          "",
+          `Current: \`${isGroup ? "group" : "dm"}:telegram:${chatId}\``,
+        ].join("\n");
       }
 
       case "new":
@@ -478,35 +540,95 @@ export class TelegramAdapter extends ChannelAdapter {
           });
         }
         return command === "new"
-          ? "New session started. Send a message to begin."
-          : "Session reset. History cleared.";
+          ? "✨ New session started. Send a message to begin."
+          : "🗑 Session cleared. History erased.";
 
       case "model": {
         const model = this.config?.agents?.defaults?.model?.primary || "unknown";
-        return `Current model: \`${model}\``;
+        const fallbacks = this.config?.agents?.defaults?.model?.fallbacks || [];
+        const lines = [`🤖 *Current Model*\n\nPrimary: \`${model}\``];
+        if (fallbacks.length > 0) {
+          lines.push(`Fallbacks: ${fallbacks.map((f) => `\`${f}\``).join(", ")}`);
+        }
+        return lines.join("\n");
       }
 
       case "tasks": {
         const tasks = this.gateway?.getTaskRegistry()?.list() || [];
-        if (tasks.length === 0) return "No background tasks.";
-        return "*Background Tasks:*\n" + tasks.map((t) => {
+        if (tasks.length === 0) return "📋 No background tasks.";
+        const lines = tasks.map((t) => {
           const elapsed = Math.round(((t.completedAt || Date.now()) - t.startedAt) / 1000);
+          const status = t.status === "running" ? "⏳" : t.status === "completed" ? "✅" : t.status === "failed" ? "❌" : "⏱";
           const depth = t.spawnDepth > 0 ? ` [depth ${t.spawnDepth}]` : "";
           const kids = t.children.length > 0 ? ` (${t.children.length} children)` : "";
-          return `• *${t.label.slice(0, 40)}* (${t.agentId})${depth}${kids} — ${t.status} (${elapsed}s)`;
-        }).join("\n");
+          const shortId = t.id.slice(0, 8);
+          return `${status} \`${shortId}\` *${t.label.slice(0, 35)}* (${t.agentId})${depth}${kids} — ${elapsed}s`;
+        });
+        return `📋 *Background Tasks*\n\n${lines.join("\n")}\n\n_Kill with /kill <id> or /killall_`;
       }
 
-      case "think":
-        return "Thinking display toggled. (Note: thinking visibility is per-client in the TUI/Web UI)";
+      case "kill": {
+        if (!this.gateway) return "Gateway not connected.";
+        if (!args[0]) return "Usage: /kill <task-id>\n\nSee /tasks for task IDs.";
+
+        const registry = this.gateway.getTaskRegistry();
+        const shortId = args[0];
+        // Match by prefix (short IDs from /tasks)
+        const allTasks = registry.list();
+        const match = allTasks.find((t) => t.id.startsWith(shortId) && t.status === "running");
+        if (!match) return `No running task matching \`${shortId}\`. See /tasks.`;
+
+        // Cancel the engine
+        const subEngine = (this.gateway as any).engines?.get(`task:${match.id}`);
+        if (subEngine) {
+          subEngine.cancel();
+          subEngine.destroy();
+          (this.gateway as any).engines?.delete(`task:${match.id}`);
+        }
+
+        registry.cancel(match.id);
+        const cascaded = registry.cascadeCancel(`task:${match.id}`);
+        const cascade = cascaded > 0 ? ` + ${cascaded} child task(s)` : "";
+        return `🗑 Killed task \`${match.id.slice(0, 8)}\` — *${match.label.slice(0, 40)}*${cascade}`;
+      }
+
+      case "killall": {
+        if (!this.gateway) return "Gateway not connected.";
+        const registry = this.gateway.getTaskRegistry();
+        const running = registry.list({ status: "running" });
+        if (running.length === 0) return "No running tasks to kill.";
+
+        for (const t of running) {
+          const subEngine = (this.gateway as any).engines?.get(`task:${t.id}`);
+          if (subEngine) {
+            subEngine.cancel();
+            subEngine.destroy();
+            (this.gateway as any).engines?.delete(`task:${t.id}`);
+          }
+          registry.cancel(t.id);
+        }
+
+        return `🗑 Killed *${running.length}* running task(s).`;
+      }
+
+      case "think": {
+        const current = thinkingEnabled.get(chatId) ?? false;
+        thinkingEnabled.set(chatId, !current);
+        return !current
+          ? "💭 Thinking display *on* — you'll see the model's reasoning above responses."
+          : "💭 Thinking display *off* — only the final response will be shown.";
+      }
+
+      case "version": {
+        return `🔧 *Clank* v1.7.1`;
+      }
 
       default:
-        return null; // Not a recognized command — let it pass through to the agent
+        return null;
     }
   }
 
   async send(sessionKey: string, payload: ReplyPayload): Promise<void> {
-    // Extract chat ID from session key (dm:telegram:12345 → 12345)
     const parts = sessionKey.split(":");
     const chatId = parts[parts.length - 1];
     if (!chatId || !this.bot) return;
@@ -520,6 +642,80 @@ export class TelegramAdapter extends ChannelAdapter {
   }
 }
 
+/** Map tool names to descriptive emojis */
+function toolEmoji(name: string): string {
+  const map: Record<string, string> = {
+    read_file: "📄", write_file: "✏️", edit_file: "✏️",
+    list_directory: "📁", search_files: "🔍", glob_files: "🔍",
+    bash: "💻", git: "📦",
+    web_search: "🌐", web_fetch: "🌐",
+    spawn_task: "🚀", manage_agent: "🤖", manage_model: "🧠",
+    manage_config: "⚙️", manage_session: "📋", manage_cron: "⏰",
+    tts: "🔊", stt: "🎤",
+  };
+  return map[name] || "🔧";
+}
+
+/** Format a tool name with emoji */
+function formatTool(name: string, done?: boolean): string {
+  const emoji = toolEmoji(name);
+  if (done === undefined) return `${emoji} ${name}`;
+  return done ? `${emoji} ${name} ✓` : `${emoji} ${name} ✗`;
+}
+
+/** Build the display text during streaming */
+function buildStreamDisplay(
+  response: string,
+  thinking: string,
+  tools: Array<{ name: string; done?: boolean }>,
+  showThinking: boolean,
+): string {
+  const parts: string[] = [];
+
+  if (showThinking && thinking) {
+    const truncated = thinking.length > 500 ? thinking.slice(-450) + "..." : thinking;
+    parts.push(`💭 ${truncated}`);
+    parts.push("");
+  }
+
+  if (tools.length > 0) {
+    const toolLine = tools.map((t) => {
+      if (t.done === undefined) return `${toolEmoji(t.name)} ${t.name}...`;
+      return formatTool(t.name, t.done);
+    }).join("  ");
+    parts.push(toolLine);
+    parts.push("");
+  }
+
+  parts.push(response);
+  return parts.join("\n");
+}
+
+/** Build the final display text after streaming completes */
+function buildFinalDisplay(
+  response: string,
+  thinking: string,
+  tools: Array<{ name: string; done?: boolean }>,
+  showThinking: boolean,
+): string {
+  const parts: string[] = [];
+
+  if (showThinking && thinking) {
+    const truncated = thinking.length > 1000 ? thinking.slice(0, 950) + "..." : thinking;
+    parts.push(`💭 _${truncated}_`);
+    parts.push("");
+  }
+
+  if (tools.length > 0) {
+    const toolLine = tools.map((t) => formatTool(t.name, t.done ?? true)).join("  ");
+    parts.push(toolLine);
+    parts.push("");
+  }
+
+  parts.push(response);
+  return parts.join("\n");
+}
+
 /** Split a long message into chunks that fit Telegram's limit */
 function splitMessage(text: string, maxLen: number): string[] {
   if (text.length <= maxLen) return [text];
@@ -530,9 +726,8 @@ function splitMessage(text: string, maxLen: number): string[] {
       chunks.push(remaining);
       break;
     }
-    // Try to split at a newline
     let splitAt = remaining.lastIndexOf("\n", maxLen);
-    if (splitAt < maxLen * 0.5) splitAt = maxLen; // No good newline, split at limit
+    if (splitAt < maxLen * 0.5) splitAt = maxLen;
     chunks.push(remaining.slice(0, splitAt));
     remaining = remaining.slice(splitAt);
   }
