@@ -481,5 +481,4 @@ Supports `${ENV_VAR}` substitution for secrets.
 
 - **Website:** [clanklabs.dev](https://clanklabs.dev)
 - **GitHub:** [ItsTrag1c/Clank](https://github.com/ItsTrag1c/Clank)
-- **Twitter/X:** [@ClankLabs](https://x.com/ClankLabs)
-- **Reddit:** [u/ClankLabs](https://reddit.com/u/ClankLabs)
+- **Twitter/X:** [@Clank_Labs](https://x.com/Clank_Labs)
