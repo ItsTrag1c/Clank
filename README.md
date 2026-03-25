@@ -16,12 +16,12 @@
 </p>
 
 <p align="center">
-  <a href="https://clanksuite.dev">Website</a> ·
+  <a href="https://clanklabs.dev">Website</a> ·
   <a href="https://github.com/ItsTrag1c/Clank/blob/main/docs/INSTALL.md">Install Guide</a> ·
   <a href="https://github.com/ItsTrag1c/Clank/blob/main/docs/USER_GUIDE.md">User Guide</a> ·
   <a href="https://github.com/ItsTrag1c/Clank/blob/main/CHANGELOG.md">Changelog</a> ·
-  <a href="https://x.com/ClankSuite">Twitter</a> ·
-  <a href="https://reddit.com/u/ClankSuite">Reddit</a>
+  <a href="https://x.com/ClankLabs">Twitter</a> ·
+  <a href="https://reddit.com/u/ClankLabs">Reddit</a>
 </p>
 
 ---
@@ -195,11 +195,11 @@ See [SECURITY.md](SECURITY.md) for the full security model.
 
 | | |
 |--|--|
-| **Website** | [clanksuite.dev](https://clanksuite.dev) |
+| **Website** | [clanklabs.dev](https://clanklabs.dev) |
 | **GitHub** | [ItsTrag1c/Clank](https://github.com/ItsTrag1c/Clank) |
 | **npm** | [npmjs.com/package/@tractorscorch/clank](https://www.npmjs.com/package/@tractorscorch/clank) |
-| **Twitter/X** | [@ClankSuite](https://x.com/ClankSuite) |
-| **Reddit** | [u/ClankSuite](https://reddit.com/u/ClankSuite) |
+| **Twitter/X** | [@ClankLabs](https://x.com/ClankLabs) |
+| **Reddit** | [u/ClankLabs](https://reddit.com/u/ClankLabs) |
 | **Legacy** | [Clank-Legacy](https://github.com/ItsTrag1c/Clank-Legacy) (archived CLI v2.7.0 + Desktop v2.6.1) |
 
 ## Requirements

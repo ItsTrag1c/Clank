@@ -384,4 +384,4 @@ Checks config, gateway, models, sessions, and workspace. Shows issues with sugge
 
 - Read the [User Guide](USER_GUIDE.md) for day-to-day usage
 - Check the [Changelog](../CHANGELOG.md) for what's new
-- Visit [clanksuite.dev](https://clanksuite.dev) for more info
+- Visit [clanklabs.dev](https://clanklabs.dev) for more info

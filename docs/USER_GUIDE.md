@@ -479,7 +479,7 @@ Supports `${ENV_VAR}` substitution for secrets.
 
 ## Links
 
-- **Website:** [clanksuite.dev](https://clanksuite.dev)
+- **Website:** [clanklabs.dev](https://clanklabs.dev)
 - **GitHub:** [ItsTrag1c/Clank](https://github.com/ItsTrag1c/Clank)
-- **Twitter/X:** [@ClankSuite](https://x.com/ClankSuite)
-- **Reddit:** [u/ClankSuite](https://reddit.com/u/ClankSuite)
+- **Twitter/X:** [@ClankLabs](https://x.com/ClankLabs)
+- **Reddit:** [u/ClankLabs](https://reddit.com/u/ClankLabs)
