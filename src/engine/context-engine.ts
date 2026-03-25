@@ -402,6 +402,36 @@ export class ContextEngine {
     }
   }
 
+  /** Check if context is critically full (>95% utilization) */
+  isOverflowing(): boolean {
+    return this.utilizationPercent() >= 95;
+  }
+
+  /**
+   * Tier-1 only compaction — synchronous, no LLM call.
+   * Safe to call mid-turn without adding latency.
+   */
+  compactTier1Only(): CompactionResult {
+    const before = this.messages.length;
+    const tokensBefore = this.estimateTokens();
+
+    this.compactTier1();
+
+    // If still over budget, use aggressive dropping
+    if (this.utilizationPercent() >= 70) {
+      this.compactTier1Aggressive();
+    }
+
+    return {
+      ok: true,
+      tier: 1,
+      messagesBefore: before,
+      messagesAfter: this.messages.length,
+      estimatedTokensBefore: tokensBefore,
+      estimatedTokensAfter: this.estimateTokens(),
+    };
+  }
+
   /** Clear all messages */
   clear(): void {
     this.messages = [];

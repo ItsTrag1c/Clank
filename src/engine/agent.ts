@@ -276,6 +276,12 @@ export class AgentEngine extends EventEmitter {
           }
 
           try {
+            // Pre-send safety: if context is > 90% full, shed tokens now
+            // before hitting the provider. Tier-1 only — no latency.
+            if (this.contextEngine.utilizationPercent() > 90) {
+              this.contextEngine.compactTier1Only();
+            }
+
             const streamIterator = activeProvider.stream(
               this.contextEngine.getMessages(),
               this.systemPrompt,
@@ -328,6 +334,26 @@ export class AgentEngine extends EventEmitter {
               streamErr.name === "AbortError" ||
               errMsg.includes("timed out")
             );
+
+            // Context-length errors: the conversation exceeded the model's
+            // context window. Compact aggressively and retry once.
+            const isContextError = /context.*(length|limit|exceeded)|too many tokens|maximum.*tokens|token limit/i.test(errMsg);
+
+            if (attempt === 0 && isContextError && !signal.aborted) {
+              this.emit("error", {
+                message: "Context limit hit — compacting and retrying...",
+                recoverable: true,
+              });
+              this.contextEngine.compactTier1Only();
+              // If still critically full after compaction, warn the user
+              if (this.contextEngine.isOverflowing()) {
+                this.emit("error", {
+                  message: "Context is nearly full — use /compact or /new to free space",
+                  recoverable: true,
+                });
+              }
+              continue;
+            }
 
             // Retryable errors: connection failures, stream drops, empty responses.
             // These are transient — the model may recover on a second attempt.
@@ -469,6 +495,20 @@ export class AgentEngine extends EventEmitter {
             const result = activeProvider.formatToolResult(tc.id, tc.name, `Error: ${errMsg}`, true);
             this.contextEngine.ingest(result);
             this.emit("tool-result", { id: tc.id, name: tc.name, success: false, summary: errMsg });
+          }
+
+          // Post-tool compaction: if a tool result pushed context past the
+          // threshold, compact immediately (tier-1 only, no latency hit).
+          // This prevents a large tool result from overflowing the context
+          // before the next iteration's compaction check.
+          if (this.contextEngine.needsCompaction()) {
+            this.contextEngine.compactTier1Only();
+            if (this.contextEngine.isOverflowing()) {
+              this.emit("error", {
+                message: "Context is nearly full — use /compact or /new to free space",
+                recoverable: true,
+              });
+            }
           }
         }
 

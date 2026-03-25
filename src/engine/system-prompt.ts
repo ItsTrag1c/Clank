@@ -22,6 +22,16 @@ const WORKSPACE_FILES = [
   "MEMORY.md",
 ];
 
+/** Workspace files for local models — skip MEMORY.md to save context tokens.
+ *  Memory is injected separately via TF-IDF relevance matching instead. */
+const WORKSPACE_FILES_LOCAL = [
+  "SOUL.md",
+  "USER.md",
+  "IDENTITY.md",
+  "AGENTS.md",
+  "TOOLS.md",
+];
+
 /** Extra file loaded only for sub-agents (spawnDepth > 0) */
 const SUB_AGENT_FILE = "RUNNER.md";
 
@@ -35,14 +45,18 @@ export async function buildSystemPrompt(opts: {
   compact?: boolean;
   thinking?: "on" | "off" | "auto";
   spawnDepth?: number;
+  isLocal?: boolean;
 }): Promise<string> {
   const parts: string[] = [];
   const compact = opts.compact ?? false;
+  const isLocal = opts.isLocal ?? false;
   const isSubAgent = (opts.spawnDepth ?? 0) > 0;
 
   if (!compact) {
     // Full mode: load workspace files (SOUL.md, USER.md, etc.)
-    const workspaceContent = await loadWorkspaceFiles(opts.workspaceDir);
+    // Local models skip MEMORY.md — memory is injected via TF-IDF relevance instead
+    const files = isLocal ? WORKSPACE_FILES_LOCAL : WORKSPACE_FILES;
+    const workspaceContent = await loadWorkspaceFiles(opts.workspaceDir, files);
     if (workspaceContent) {
       parts.push(workspaceContent);
       parts.push("---");
@@ -83,6 +97,7 @@ export async function buildSystemPrompt(opts: {
       "You have tools: read_file, write_file, edit_file, list_directory, bash, search_files, glob_files, git, web_search, web_fetch, and self-config tools.",
       "ALWAYS use your tools. NEVER say you cannot access files, run commands, or perform actions. You CAN — use your tools.",
       "NEVER apologize and refuse. If asked to do something, DO IT with your tools or explain what tool you need.",
+      "Do NOT modify files outside your workspace or the user's current directory unless the user explicitly names the file.",
     ].join(" "));
   } else {
     parts.push("## CRITICAL: You Are a Local Agent With Tools");
@@ -98,6 +113,7 @@ export async function buildSystemPrompt(opts: {
     parts.push("3. NEVER apologize and refuse to act. If a task requires a tool, use it. If you lack a specific tool, say which tool you need — do not give a generic refusal.");
     parts.push("4. Read files before editing them. Use tools proactively without being asked twice.");
     parts.push("5. You can configure yourself — use the config, channel, agent, and model management tools to modify your own setup.");
+    parts.push("6. Do NOT modify, delete, or overwrite files outside your workspace directory or the user's current working directory unless the user explicitly names the file. System files, OS directories, and config dotfiles are off-limits by default.");
   }
 
   // Thinking control
@@ -108,7 +124,11 @@ export async function buildSystemPrompt(opts: {
 
   // Memory persistence instruction
   parts.push("");
-  parts.push("When you learn something important about the user or project, save it using the config or memory tools so you remember it next time.");
+  if (isLocal) {
+    parts.push("Your memories are managed automatically. Use memory tools to save or recall important information. Do not rely on conversation history for long-term facts.");
+  } else {
+    parts.push("When you learn something important about the user or project, save it using the config or memory tools so you remember it next time.");
+  }
   parts.push("");
 
   // Project context — check for .clank.md in workspace
@@ -123,10 +143,10 @@ export async function buildSystemPrompt(opts: {
 }
 
 /** Load workspace bootstrap files into a combined string */
-async function loadWorkspaceFiles(workspaceDir: string): Promise<string | null> {
+async function loadWorkspaceFiles(workspaceDir: string, files: string[] = WORKSPACE_FILES): Promise<string | null> {
   const sections: string[] = [];
 
-  for (const filename of WORKSPACE_FILES) {
+  for (const filename of files) {
     const filePath = join(workspaceDir, filename);
     if (existsSync(filePath)) {
       try {

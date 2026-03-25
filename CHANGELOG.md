@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.7.3] — 2026-03-25
+
+### Added
+- **Smart memory for local models** — local models no longer load the full MEMORY.md into the system prompt (wastes context tokens). Instead, memories are injected via TF-IDF relevance matching with a tighter 800-char budget, keeping only what's relevant to the current conversation
+- **System file protection rule** — agents are now instructed not to modify, delete, or overwrite files outside the workspace or current working directory unless the user explicitly names the file. Prevents local models from touching system files, OS directories, or config dotfiles unprompted
+- **Proactive auto-compaction** — context is now checked after every tool result (not just at the start of each loop iteration). If a large tool result pushes context past the threshold, tier-1 compaction fires immediately with zero latency. A pre-send safety check at 90% utilization catches anything that slips through
+- **Context overflow recovery** — if a provider returns a context-length error, the engine now auto-compacts aggressively and retries once instead of crashing. If context is still critically full (>95%), warns the user to use `/compact` or `/new`
+
+### Fixed
+- **TF-IDF memory relevance** — `buildMemoryBlock()` was called with an empty query string, making relevance scoring useless. Now passes session context for proper matching
+
+---
+
 ## [1.7.2] — 2026-03-24
 
 ### Added

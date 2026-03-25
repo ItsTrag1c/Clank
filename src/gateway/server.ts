@@ -374,7 +374,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.7.2",
+        version: "1.7.3",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -510,7 +510,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.7.2",
+      version: "1.7.3",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -860,12 +860,15 @@ export class GatewayServer {
       compact,
       thinking,
       spawnDepth: currentDepth,
+      isLocal: resolved.isLocal,
     });
 
     // Inject memory context into system prompt — use a smaller budget for
-    // local models since their context windows are limited (8K-32K)
-    const memoryBudget = resolved.isLocal ? 1500 : 4000;
-    const memoryBlock = await this.memoryManager.buildMemoryBlock("", identity.workspace, memoryBudget);
+    // local models since their context windows are limited (8K-32K).
+    // Local models skip MEMORY.md from workspace files and rely entirely
+    // on TF-IDF relevance matching here instead.
+    const memoryBudget = resolved.isLocal ? 800 : 4000;
+    const memoryBlock = await this.memoryManager.buildMemoryBlock("session", identity.workspace, memoryBudget);
     const fullPrompt = memoryBlock
       ? systemPrompt + "\n\n---\n\n" + memoryBlock
       : systemPrompt;
