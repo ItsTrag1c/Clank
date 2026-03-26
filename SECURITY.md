@@ -4,10 +4,10 @@
 
 | Version | Status |
 |---------|--------|
-| 1.1.x | Supported (current) |
-| 1.0.x | Upgrade recommended — security fixes in 1.1.0 |
+| 1.7.x | Supported (current) |
+| < 1.7.0 | Upgrade recommended |
 
-Legacy versions (CLI v2.7.0, Desktop v2.6.1) are archived at [Clank-Legacy](https://github.com/ItsTrag1c/Clank-Legacy) and no longer receive updates.
+Legacy versions (CLI v2.7.0, Desktop v2.6.1) have been deleted and are no longer available.
 
 ## Reporting a Vulnerability
 
@@ -77,9 +77,13 @@ We will acknowledge receipt within 48 hours and provide a fix timeline within 7 
 - Local-only loading (no remote plugin fetching)
 - Plugins respect agent-level tool policy restrictions
 
-### Dependencies
-- Minimal dependency tree: commander, grammy, json5, ws
-- 0 known vulnerabilities (npm audit clean as of v1.1.0)
+### Supply Chain Security
+- **Pinned dependencies** — all versions in `package.json` use exact versions (no `^` or `~` ranges) to prevent auto-pulling compromised releases
+- **Lockfile committed** — `package-lock.json` is committed and CI uses `npm ci` for reproducible installs
+- **Minimal dependency tree** — 4 runtime dependencies (commander, grammy, json5, ws) to reduce attack surface
+- **npm audit clean** as of v1.7.4
+- **npm 2FA** — publishing requires two-factor authentication on the maintainer's npm account
+- Consumers are encouraged to verify package integrity via `npm audit` after installation
 
 ## Known Limitations
 
