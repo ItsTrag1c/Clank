@@ -2,6 +2,8 @@
 
 How we think about AI safety, transparency, and user trust.
 
+> **Security Notice:** Clank gives AI agents full access to your file system, shell, and connected services. **We strongly recommend running Clank on dedicated hardware** (dev machine, VM, or container) rather than on systems with sensitive personal data or credentials you don't want the agent to access. See the [Threat Model](THREAT_MODEL.md) for details.
+
 ---
 
 ## Philosophy

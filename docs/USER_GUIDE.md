@@ -2,6 +2,8 @@
 
 How to use Clank day-to-day. For installation, see [INSTALL.md](INSTALL.md).
 
+> **Security Notice:** Clank gives AI agents full access to your file system, shell, and connected services. **We strongly recommend running Clank on dedicated hardware** (dev machine, VM, or container) rather than on systems with sensitive personal data or credentials you don't want the agent to access.
+
 ---
 
 ## The Basics

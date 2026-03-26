@@ -2,6 +2,8 @@
 
 Transparency document for the Wrench model — the fine-tuned LLM that powers Clank's agent behavior.
 
+> **Deployment Note:** Clank and the Wrench model are designed to run on dedicated hardware (dev machine, VM, or container) due to the agent's full system access model. See the [Threat Model](THREAT_MODEL.md) for details.
+
 ## Overview
 
 Wrench is a fine-tuned version of Qwen3.5-35B-A3B, trained to be a better coding agent. The goal is a model that reliably uses tools, follows system prompts, recovers from errors, knows when to stop, and doesn't hallucinate capabilities it doesn't have.

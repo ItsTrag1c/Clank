@@ -1,5 +1,7 @@
 # Clank Gateway Architecture
 
+> **Deployment Note:** Clank is designed to run on dedicated hardware (dev machine, VM, or container) due to its full system access model. See the [Threat Model](THREAT_MODEL.md) and [Security Policy](../SECURITY.md) for detailed security considerations.
+
 ## Overview
 
 Clank Gateway is a single-daemon AI agent gateway that exposes both WebSocket and HTTP interfaces on port **18790**. All communication uses JSON-RPC 2.0. One process handles every connected channel, every active agent, and every tool invocation.
