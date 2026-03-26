@@ -225,4 +225,4 @@ See [SECURITY.md](SECURITY.md) for the full security model.
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+Apache 2.0 — see [LICENSE](LICENSE)
