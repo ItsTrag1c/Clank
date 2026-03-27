@@ -121,7 +121,7 @@ ollama create wrench -f Modelfile
 # Set as primary model in Clank config: "primary": "ollama/wrench"
 
 # llama.cpp
-./llama-server -m Wrench-35B-A3B-Q4_K_M-GGUF.gguf -c 8192 -ngl 99
+./llama-server -m wrench-35B-A3B-Q4_K_M.gguf --jinja -ngl 100 -fa on --temp 0.4 --top-k 20 --top-p 0.95 --min-p 0 --presence-penalty 1.5 -c 32768
 ```
 
 ## Security Notice
