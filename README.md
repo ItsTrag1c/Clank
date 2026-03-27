@@ -50,14 +50,19 @@ Clank is a personal AI gateway that connects your preferred interfaces to AI age
 
 ## Quick Start
 
+### npm (all platforms)
+
 ```bash
-# Install
 npm install -g @clanklabs/clank
-
-# Setup (detects models, creates config, connects channels)
 clank setup
+clank
+```
 
-# Start chatting
+### macOS / Linux (one-liner)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
+clank setup
 clank
 ```
 

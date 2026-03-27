@@ -46,22 +46,13 @@ Clank also auto-detects **LM Studio**, **llama.cpp**, and **vLLM** if they're ru
 npm install -g @clanklabs/clank
 ```
 
-### Option B: Standalone binary (no Node.js required)
+### Option B: One-liner
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
 ```
 
-This downloads the pre-built binary and places it in `/usr/local/bin/`.
-
-### Option C: Manual download
-
-Download `Clank_<version>_macos` from the [releases page](https://github.com/ClankLabs/Clank/releases/latest), then:
-
-```bash
-chmod +x Clank_*_macos
-sudo mv Clank_*_macos /usr/local/bin/clank
-```
+This checks for Node.js 20+, installs Clank via npm, and gets you ready to run `clank setup`.
 
 Verify:
 
@@ -85,7 +76,7 @@ The wizard will:
 3. Optionally add cloud providers (Anthropic, OpenAI, Google, etc.)
 4. Configure the gateway (port, auth token)
 5. Create workspace files (SOUL.md, USER.md, etc.)
-6. Optionally connect Telegram, Discord, or Signal
+6. Optionally connect Telegram or Discord
 7. Optionally set up web search (Brave) and voice (ElevenLabs)
 
 For full control over every setting: `clank setup --advanced`
@@ -98,7 +89,7 @@ For full control over every setting: `clank setup --advanced`
 clank
 ```
 
-This starts the gateway in the background and opens the TUI. Telegram, Discord, and Signal bots connect automatically if configured.
+This starts the gateway in the background and opens the TUI. Telegram and Discord bots connect automatically if configured.
 
 ### Other Interfaces
 

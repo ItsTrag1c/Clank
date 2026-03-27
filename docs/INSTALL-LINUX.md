@@ -59,9 +59,19 @@ Clank also auto-detects **LM Studio**, **llama.cpp**, and **vLLM** if they're ru
 
 ## Install Clank
 
+### Option A: npm
+
 ```bash
 npm install -g @clanklabs/clank
 ```
+
+### Option B: One-liner
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
+```
+
+This checks for Node.js 20+, installs Clank via npm, and mentions Signal setup on Linux.
 
 > **Note:** If you get `EACCES` permission errors, configure npm to use a local prefix instead of running with `sudo`:
 > ```bash

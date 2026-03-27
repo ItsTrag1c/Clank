@@ -1,37 +1,67 @@
 #!/bin/bash
 set -e
 
-REPO="ClankLabs/Clank"
-INSTALL_DIR="/usr/local/bin"
+# Clank — Universal installer for macOS and Linux
+# Usage: curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
 
-# Get latest version tag
-VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/')
-if [ -z "$VERSION" ]; then
-  echo "Error: Could not determine latest version."
+echo ""
+echo "  Installing Clank..."
+echo ""
+
+# Detect platform
+OS=$(uname -s)
+ARCH=$(uname -m)
+
+case "$OS" in
+  Darwin) PLATFORM="macOS" ;;
+  Linux)  PLATFORM="Linux" ;;
+  *)
+    echo "  Error: Unsupported platform ($OS). Use 'npm install -g @clanklabs/clank' instead."
+    exit 1
+    ;;
+esac
+
+# Check for Node.js
+if ! command -v node &>/dev/null; then
+  echo "  Node.js 20+ is required but not installed."
+  echo ""
+  if [ "$PLATFORM" = "macOS" ]; then
+    echo "  Install Node.js:"
+    echo "    brew install node"
+    echo "    — or download from https://nodejs.org/"
+  else
+    echo "  Install Node.js:"
+    echo "    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
+    echo "    sudo apt-get install -y nodejs"
+    echo ""
+    echo "    — or use nvm: https://github.com/nvm-sh/nvm"
+  fi
   exit 1
 fi
 
-BINARY="Clank_${VERSION}_macos"
-URL="https://github.com/$REPO/releases/download/v${VERSION}/${BINARY}"
-
-echo "Installing Clank v${VERSION} for macOS..."
-
-# Download
-TMP=$(mktemp -d)
-curl -fsSL "$URL" -o "$TMP/clank"
-chmod +x "$TMP/clank"
-
-# Install
-if [ -w "$INSTALL_DIR" ]; then
-  mv "$TMP/clank" "$INSTALL_DIR/clank"
-else
-  sudo mv "$TMP/clank" "$INSTALL_DIR/clank"
+NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
+if [ "$NODE_VERSION" -lt 20 ]; then
+  echo "  Error: Node.js 20+ required (found v$(node -v))."
+  echo "  Update Node.js and try again."
+  exit 1
 fi
 
-rm -rf "$TMP"
-
-echo "Installed clank v${VERSION} to $INSTALL_DIR/clank"
+# Install via npm
+echo "  Platform: $PLATFORM ($ARCH)"
+echo "  Node.js:  $(node -v)"
 echo ""
-echo "Get started:"
-echo "  clank setup"
-echo "  clank"
+
+npm install -g @clanklabs/clank
+
+echo ""
+echo "  Clank installed successfully!"
+echo ""
+echo "  Get started:"
+echo "    clank setup    — configure models, channels, API keys"
+echo "    clank          — start gateway + TUI"
+echo ""
+if [ "$PLATFORM" = "Linux" ]; then
+  echo "  Signal integration available on Linux:"
+  echo "    clank setup --signal"
+  echo ""
+fi

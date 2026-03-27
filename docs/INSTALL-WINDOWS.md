@@ -65,7 +65,7 @@ The wizard will:
 3. Optionally add cloud providers (Anthropic, OpenAI, Google, etc.)
 4. Configure the gateway (port, auth token)
 5. Create workspace files (SOUL.md, USER.md, etc.)
-6. Optionally connect Telegram, Discord, or Signal
+6. Optionally connect Telegram or Discord
 7. Optionally set up web search (Brave) and voice (ElevenLabs)
 
 For full control over every setting: `clank setup --advanced`
@@ -78,7 +78,7 @@ For full control over every setting: `clank setup --advanced`
 clank
 ```
 
-This starts the gateway in the background and opens the TUI. Telegram, Discord, and Signal bots connect automatically if configured.
+This starts the gateway in the background and opens the TUI. Telegram and Discord bots connect automatically if configured.
 
 ### Other Interfaces
 
