@@ -155,7 +155,7 @@ Messages from Telegram and Discord channels are treated as user input. If someon
 
 If you find a security vulnerability in Clank Gateway:
 
-- **GitHub Issues:** Open an issue at [github.com/ItsTrag1c/Clank](https://github.com/ItsTrag1c/Clank/issues) with the `security` label.
+- **GitHub Issues:** Open an issue at [github.com/ClankLabs/Clank](https://github.com/ClankLabs/Clank/issues) with the `security` label.
 - **Email:** Reach out directly if the issue is sensitive and shouldn't be disclosed publicly before a fix is available.
 
 We take security reports seriously and will respond promptly. If you've found a way to bypass a protection that's listed in this document, we want to know.

@@ -1,6 +1,6 @@
 # Clank Agent Benchmark
 
-A standardized benchmark for evaluating tool-calling accuracy in local LLMs routed through [Clank Gateway](https://github.com/ItsTrag1c/Clank).
+A standardized benchmark for evaluating tool-calling accuracy in local LLMs routed through [Clank Gateway](https://github.com/ClankLabs/Clank).
 
 **License:** Apache 2.0
 
@@ -197,7 +197,7 @@ Wrench v5 closes the gap between a 35B local model and frontier APIs. The base Q
 
 ### Prerequisites
 
-- A running instance of [Clank Gateway](https://github.com/ItsTrag1c/Clank) with the target model configured.
+- A running instance of [Clank Gateway](https://github.com/ClankLabs/Clank) with the target model configured.
 - A tool-calling runtime that supports the 10 tools listed in the system prompt (or mocked equivalents).
 - A filesystem with the test paths created (or tolerance for "file not found" responses in error recovery prompts).
 
@@ -258,4 +258,4 @@ The base Qwen 3.5 35B score (~55/120) demonstrates the magnitude of the fine-tun
 
 ---
 
-*This benchmark is part of the [Clank](https://github.com/ItsTrag1c/Clank) project, licensed under Apache 2.0.*
+*This benchmark is part of the [Clank](https://github.com/ClankLabs/Clank) project, licensed under Apache 2.0.*

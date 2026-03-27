@@ -26,4 +26,4 @@ Project maintainers will remove, edit, or reject comments, commits, code, issues
 
 ## Contact
 
-Report issues via [GitHub Issues](https://github.com/ItsTrag1c/Clank/issues) or reach out to [@Clank_Labs](https://x.com/Clank_Labs) on X.
+Report issues via [GitHub Issues](https://github.com/ClankLabs/Clank/issues) or reach out to [@Clank_Labs](https://x.com/Clank_Labs) on X.

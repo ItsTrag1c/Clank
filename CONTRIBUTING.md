@@ -13,7 +13,7 @@ Welcome! Clank is an open-source, local-first AI gateway. Contributions are welc
 ## Getting Started
 
 ```bash
-git clone https://github.com/ItsTrag1c/Clank.git
+git clone https://github.com/ClankLabs/Clank.git
 cd Clank
 npm install
 npm run build        # tsup builds to dist/
@@ -61,7 +61,7 @@ Each example should demonstrate a realistic, complete interaction. Include the s
 
 ## Issues
 
-Use [GitHub Issues](https://github.com/ItsTrag1c/Clank/issues) for bugs and feature requests.
+Use [GitHub Issues](https://github.com/ClankLabs/Clank/issues) for bugs and feature requests.
 
 For bugs, include:
 - What you expected to happen

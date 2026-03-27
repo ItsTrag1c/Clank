@@ -30,14 +30,14 @@ export async function runUpdate(): Promise<void> {
     // --force: on Windows, npm can't overwrite its own shim files (clank.ps1,
     // clank.cmd) while this process is running — force lets it replace them
     // --prefer-online: skip npm cache to ensure we get the actual latest version
-    const output = execSync("npm install -g @tractorscorch/clank@latest --force --prefer-online", {
+    const output = execSync("npm install -g @clanklabs/clank@latest --force --prefer-online", {
       encoding: "utf-8",
       timeout: 120_000,
     });
     console.log(dim(`  ${output.trim()}`));
   } catch (err) {
     console.error(red(`  Update failed: ${err instanceof Error ? err.message : err}`));
-    console.error(dim("  Try manually: npm install -g @tractorscorch/clank@latest --force --prefer-online"));
+    console.error(dim("  Try manually: npm install -g @clanklabs/clank@latest --force --prefer-online"));
     return;
   }
 

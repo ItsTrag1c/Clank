@@ -34,18 +34,18 @@ Clank also auto-detects **LM Studio**, **llama.cpp**, and **vLLM** if they're ru
 ### Option 1: npm (all platforms)
 
 ```bash
-npm install -g @tractorscorch/clank
+npm install -g @clanklabs/clank
 ```
 
 ### Option 2: macOS one-liner (standalone binary, no Node.js required)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ItsTrag1c/Clank/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
 ```
 
 ### Option 3: Manual download
 
-Download the latest binary from the [releases page](https://github.com/ItsTrag1c/Clank/releases/latest):
+Download the latest binary from the [releases page](https://github.com/ClankLabs/Clank/releases/latest):
 
 | Platform | File |
 |----------|------|
@@ -332,7 +332,7 @@ clank update
 Or manually:
 
 ```bash
-npm install -g @tractorscorch/clank
+npm install -g @clanklabs/clank
 ```
 
 ---
@@ -350,7 +350,7 @@ Or manually:
 ```bash
 rm -rf ~/.clank          # macOS/Linux
 rd /s "%APPDATA%\Clank"  # Windows
-npm uninstall -g @tractorscorch/clank
+npm uninstall -g @clanklabs/clank
 ```
 
 ---

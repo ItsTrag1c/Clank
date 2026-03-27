@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.7.5] — 2026-03-27
+
+### Changed
+- **Organization migration** — package moved from `@tractorscorch/clank` to `@clanklabs/clank`. All GitHub repos now live under the [ClankLabs](https://github.com/ClankLabs) organization. No functional changes.
+
+---
+
 ## [1.7.4] — 2026-03-26
 
 ### Fixed

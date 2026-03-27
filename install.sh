@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="ItsTrag1c/Clank"
+REPO="ClankLabs/Clank"
 INSTALL_DIR="/usr/local/bin"
 
 # Get latest version tag

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ItsTrag1c/Clank/main/docs/banner.png" alt="Clank" width="100%" />
+  <img src="https://raw.githubusercontent.com/ClankLabs/Clank/main/docs/banner.png" alt="Clank" width="100%" />
 </p>
 
 <h1 align="center">Clank</h1>
@@ -9,17 +9,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ItsTrag1c/Clank/releases/latest"><img src="https://img.shields.io/badge/version-1.7.4-blue.svg" alt="Version" /></a>
+  <a href="https://github.com/ClankLabs/Clank/releases/latest"><img src="https://img.shields.io/badge/version-1.7.5-blue.svg" alt="Version" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
-  <a href="https://www.npmjs.com/package/@tractorscorch/clank"><img src="https://img.shields.io/npm/v/@tractorscorch/clank.svg" alt="npm" /></a>
-  <a href="https://github.com/ItsTrag1c/Clank/stargazers"><img src="https://img.shields.io/github/stars/ItsTrag1c/Clank.svg" alt="Stars" /></a>
+  <a href="https://www.npmjs.com/package/@clanklabs/clank"><img src="https://img.shields.io/npm/v/@clanklabs/clank.svg" alt="npm" /></a>
+  <a href="https://github.com/ClankLabs/Clank/stargazers"><img src="https://img.shields.io/github/stars/ClankLabs/Clank.svg" alt="Stars" /></a>
 </p>
 
 <p align="center">
   <a href="https://clanklabs.dev">Website</a> ·
-  <a href="https://github.com/ItsTrag1c/Clank/blob/main/docs/INSTALL.md">Install Guide</a> ·
-  <a href="https://github.com/ItsTrag1c/Clank/blob/main/docs/USER_GUIDE.md">User Guide</a> ·
-  <a href="https://github.com/ItsTrag1c/Clank/blob/main/CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/ClankLabs/Clank/blob/main/docs/INSTALL.md">Install Guide</a> ·
+  <a href="https://github.com/ClankLabs/Clank/blob/main/docs/USER_GUIDE.md">User Guide</a> ·
+  <a href="https://github.com/ClankLabs/Clank/blob/main/CHANGELOG.md">Changelog</a> ·
   <a href="https://x.com/Clank_Labs">Twitter</a> ·
   <a href="https://reddit.com/u/ClankLabs">Reddit</a>
 </p>
@@ -55,7 +55,7 @@ Clank is a personal AI gateway — **one daemon, many frontends**. It connects y
 ### npm (all platforms)
 
 ```bash
-npm install -g @tractorscorch/clank
+npm install -g @clanklabs/clank
 ```
 
 Then run the setup wizard (creates config, picks your model):
@@ -73,7 +73,7 @@ clank
 ### macOS (standalone binary)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ItsTrag1c/Clank/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
 ```
 
 Then run setup and start:
@@ -91,8 +91,8 @@ That's it. Setup auto-detects your local models, configures the gateway, and get
 
 | Platform | Download |
 |----------|----------|
-| **npm** (all platforms) | `npm install -g @tractorscorch/clank` |
-| **macOS** (Apple Silicon) | [Clank_1.7.4_macos](https://github.com/ItsTrag1c/Clank/releases/latest/download/Clank_1.7.4_macos) |
+| **npm** (all platforms) | `npm install -g @clanklabs/clank` |
+| **macOS** (Apple Silicon) | [Clank_1.7.5_macos](https://github.com/ClankLabs/Clank/releases/latest/download/Clank_1.7.5_macos) |
 
 ## Wrench — Purpose-Built Agentic Models
 
@@ -226,8 +226,8 @@ See [SECURITY.md](SECURITY.md) for the full security model.
 | | |
 |--|--|
 | **Website** | [clanklabs.dev](https://clanklabs.dev) |
-| **GitHub** | [ItsTrag1c/Clank](https://github.com/ItsTrag1c/Clank) |
-| **npm** | [npmjs.com/package/@tractorscorch/clank](https://www.npmjs.com/package/@tractorscorch/clank) |
+| **GitHub** | [ClankLabs/Clank](https://github.com/ClankLabs/Clank) |
+| **npm** | [npmjs.com/package/@clanklabs/clank](https://www.npmjs.com/package/@clanklabs/clank) |
 | **Twitter/X** | [@Clank_Labs](https://x.com/Clank_Labs) |
 | **Reddit** | [u/ClankLabs](https://reddit.com/u/ClankLabs) |
 
