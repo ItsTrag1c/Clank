@@ -94,14 +94,26 @@ That's it. Setup auto-detects your local models, configures the gateway, and get
 | **npm** (all platforms) | `npm install -g @tractorscorch/clank` |
 | **macOS** (Apple Silicon) | [Clank_1.7.4_macos](https://github.com/ItsTrag1c/Clank/releases/latest/download/Clank_1.7.4_macos) |
 
-## Wrench — Purpose-Built Agentic Model
+## Wrench — Purpose-Built Agentic Models
 
-[**Wrench**](https://clanklabs.dev/wrench) is our custom fine-tuned model, built specifically for Clank. It scores **113/120 (94.2%)** on our 40-prompt agentic benchmark across 8 categories — matching Claude Sonnet — while running locally on consumer hardware.
+[**Wrench**](https://clanklabs.dev/wrench) is our family of custom fine-tuned models, built specifically for Clank's tool calling protocol.
+
+### Wrench 35B (Flagship)
+
+Scores **113/120 (94.2%)** on our 40-prompt agentic benchmark across 8 categories — matching Claude Sonnet — while running locally on consumer hardware.
 
 - **Base:** Qwen3.5-35B-A3B (3B active parameters, MoE)
 - **Format:** Q4_K_M GGUF (~20GB)
 - **Min GPU:** 16GB VRAM
 - **Download:** [HuggingFace](https://huggingface.co/ClankLabs/Wrench-35B-A3B-Q4_K_M-GGUF)
+
+### Wrench 8B (Compact)
+
+Scores **92/120 (76.7%)** on the same benchmark. Designed for machines with less VRAM.
+
+- **Base:** Qwen3-8B (dense, 8B parameters)
+- **Format:** Q4_K_M GGUF (~5GB)
+- **Min GPU:** 8GB VRAM
 
 ```bash
 # Ollama
