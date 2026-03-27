@@ -126,7 +126,7 @@ Every example follows the ChatML format with system, user, and assistant turns. 
 - **Base model:** Qwen3.5-9B
 - **Examples:** 1,251
 - **Epochs:** 2
-- **Benchmark:** 92/120 (76.7% on same 40-prompt suite)
+- **Benchmark:** 105/120 (87.5% on same 40-prompt suite)
 - **Format:** Q4_K_M GGUF (~5GB)
 - **Min GPU:** 8GB VRAM
 - **Notes:** Same training methodology and LoRA hyperparameters as the 35B, applied to a dense 8B model for lower-end hardware. Uses an expanded dataset (1,251 examples vs 1,147 for 35B v5). Scores lower than the 35B as expected from the smaller parameter count, but still solid agentic performance for the weight class.

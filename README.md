@@ -109,7 +109,7 @@ Scores **113/120 (94.2%)** on our 40-prompt agentic benchmark across 8 categorie
 
 ### Wrench 8B (Compact)
 
-Scores **92/120 (76.7%)** on the same benchmark. Designed for machines with less VRAM.
+Scores **105/120 (87.5%)** on the same benchmark. Designed for machines with less VRAM.
 
 - **Base:** Qwen3.5-9B (dense, 8B parameters)
 - **Format:** Q4_K_M GGUF (~5GB)
