@@ -8,7 +8,7 @@ Transparency document for the Wrench model — the fine-tuned LLM that powers Cl
 
 Wrench is a family of fine-tuned models trained to be better coding agents. The goal is a model that reliably uses tools, follows system prompts, recovers from errors, knows when to stop, and doesn't hallucinate capabilities it doesn't have.
 
-The flagship model is based on Qwen3.5-35B-A3B (MoE, 16GB VRAM). The compact model is based on Qwen3-8B (dense, 8GB VRAM) for lower-end hardware.
+The flagship model is based on Qwen3.5-35B-A3B (MoE, 16GB VRAM). The compact model is based on Qwen3.5-9B (dense, 8GB VRAM) for lower-end hardware.
 
 All training data is hand-crafted. No synthetic generation, no scraping. Every example was written to teach a specific behavior or correct a specific failure mode observed during real usage.
 
@@ -31,7 +31,7 @@ The MoE architecture is the key choice here. 35B total parameters means the mode
 
 | Property | Value |
 |----------|-------|
-| **Model** | Qwen3-8B |
+| **Model** | Qwen3.5-9B |
 | **Architecture** | Dense transformer |
 | **Total parameters** | 8B |
 | **Active parameters** | 8B per token |
@@ -123,7 +123,7 @@ Every example follows the ChatML format with system, user, and assistant turns. 
 - **Notes:** Expanded benchmark from 25 prompts / 5 categories to 40 prompts / 8 categories, adding Planning & Reasoning, Tool Format Correctness, and Safety & Restraint. Added 34 new training examples targeting the new categories. Category scores: Basic Tool Use 15/15, Multi-Step Tasks 14/15, Error Recovery 13/15, Response Quality 15/15, System Prompt Following 14/15, Planning & Reasoning 14/15, Tool Format Correctness 13/15, Safety & Restraint 15/15.
 
 ### Wrench 8B v1 (Current — 8B)
-- **Base model:** Qwen3-8B
+- **Base model:** Qwen3.5-9B
 - **Examples:** 1,251
 - **Epochs:** 2
 - **Benchmark:** 92/120 (76.7% on same 40-prompt suite)

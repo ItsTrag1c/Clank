@@ -111,7 +111,7 @@ Scores **113/120 (94.2%)** on our 40-prompt agentic benchmark across 8 categorie
 
 Scores **92/120 (76.7%)** on the same benchmark. Designed for machines with less VRAM.
 
-- **Base:** Qwen3-8B (dense, 8B parameters)
+- **Base:** Qwen3.5-9B (dense, 8B parameters)
 - **Format:** Q4_K_M GGUF (~5GB)
 - **Min GPU:** 8GB VRAM
 
