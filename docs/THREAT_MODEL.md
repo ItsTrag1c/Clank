@@ -2,7 +2,7 @@
 
 An honest assessment of what Clank defends against and what it doesn't.
 
-**Version:** 1.9.0 | **Last Updated:** 2026-03-27
+**Version:** 1.9.1 | **Last Updated:** 2026-03-27
 
 ---
 

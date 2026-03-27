@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.9.1] — 2026-03-27
+
+### Fixed
+- **Signal is Linux-only** — setup wizard and main setup now detect non-Linux and skip Signal with explanation. Windows/macOS install guides no longer mention Signal.
+
+### Changed
+- **Cross-platform install script** — `install.sh` now works on both macOS and Linux (detects platform, checks Node.js 20+, installs via npm). On Linux, mentions Signal setup.
+- **Linux install guide** — added one-liner install option
+
+---
+
 ## [1.9.0] — 2026-03-27
 
 ### Added
