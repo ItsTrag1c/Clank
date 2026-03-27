@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.8.2] — 2026-03-27
+
+### Fixed
+- **Web dashboard 404** — `clank dashboard` returned "Not found" because the Web UI path resolved one directory too high. The HTML file is inside `dist/web/` but the server was looking at `../web/` relative to `dist/`.
+
+### Changed
+- **Documentation rewrite** — all external docs rewritten for v1.8.x state. Per-OS install guides (Windows, macOS, Linux). Updated security, privacy, architecture, user guide, contributing, alignment, and threat model docs.
+
+---
+
 ## [1.8.1] — 2026-03-27
 
 ### Fixed
