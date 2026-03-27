@@ -1,138 +1,76 @@
-# Clank — Installation Guide
+# Installation Guide
 
-Complete guide to installing and setting up Clank.
+Complete guide to installing and setting up Clank on any platform.
 
 > **Security Notice:** Clank is a developer tool that gives AI agents full access to your file system, shell, and connected services. We strongly recommend running it on dedicated hardware (dev machine, VM, or container) rather than on systems with sensitive personal data.
 
 ---
 
-## Prerequisites
+## Platform Guides
 
-- **Node.js 20+** — [download](https://nodejs.org/)
-- **A local model server** (recommended) or a cloud API key
+| Platform | Guide |
+|----------|-------|
+| **Windows** | [INSTALL-WINDOWS.md](INSTALL-WINDOWS.md) |
+| **macOS** | [INSTALL-MACOS.md](INSTALL-MACOS.md) |
+| **Linux** | [INSTALL-LINUX.md](INSTALL-LINUX.md) |
 
-### Recommended: Install Ollama
-
-[Ollama](https://ollama.com/) is the easiest way to run local models:
-
-```bash
-# macOS / Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Windows — download from https://ollama.com/download
-
-# Pull a model
-ollama pull qwen3.5
-```
-
-Clank also auto-detects **LM Studio**, **llama.cpp**, and **vLLM** if they're running.
+Each guide covers prerequisites, installation, setup, and platform-specific configuration.
 
 ---
 
-## Install Clank
+## Quick Install (All Platforms)
 
-### Option 1: npm (all platforms)
+If you already have Node.js 20+ installed:
 
 ```bash
 npm install -g @clanklabs/clank
-```
-
-### Option 2: macOS one-liner (standalone binary, no Node.js required)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ClankLabs/Clank/main/install.sh | bash
-```
-
-### Option 3: Manual download
-
-Download the latest binary from the [releases page](https://github.com/ClankLabs/Clank/releases/latest):
-
-| Platform | File |
-|----------|------|
-| macOS (Apple Silicon) | `Clank_<version>_macos` |
-
-Place the binary in your PATH (e.g. `/usr/local/bin/clank`) and `chmod +x` it.
-
-### Verify
-
-```bash
-clank --version
+clank setup
+clank
 ```
 
 ---
 
-## First-Time Setup
+## What Setup Does
 
-Run the setup wizard:
+The `clank setup` wizard handles everything:
 
-```bash
-clank setup
-```
-
-### What Setup Does
-
-1. **Detects local models** — scans for Ollama, LM Studio, llama.cpp, vLLM
-2. **Configures the primary model** — picks the best available model as default
-3. **Cloud providers** (optional) — add multiple providers in a loop:
+1. **Detects local models** — scans for Ollama, LM Studio, llama.cpp, vLLM on standard ports
+2. **Configures your primary model** — picks the best available model as default
+3. **Cloud providers** (optional) — add any combination of:
    - Anthropic (Claude)
    - OpenAI (GPT-4o, Codex)
    - Google (Gemini)
-   - OpenRouter (many models via one API key)
-   - OpenCode (subscription-based, many models)
-   - OpenAI Codex OAuth (use ChatGPT Plus/Pro subscription)
-4. **Gateway settings** — port, auth token (auto-generated)
-5. **Workspace** — creates SOUL.md, USER.md, IDENTITY.md, and other workspace files
-6. **Channels** — connect Telegram bot, Discord bot (optional)
-7. **Web search** — Brave Search API key (optional, free tier available)
-8. **Integrations** — ElevenLabs TTS, Whisper STT (optional)
+   - OpenRouter (many models via one key)
+   - OpenCode (subscription-based)
+   - Codex OAuth (use your ChatGPT Plus/Pro subscription)
+4. **Gateway settings** — port (default 18790), auth token (auto-generated)
+5. **Workspace** — creates SOUL.md, USER.md, IDENTITY.md, and other agent workspace files
+6. **Channels** (optional) — connect Telegram bot, Discord bot, Signal
+7. **Web search** (optional) — Brave Search API key (free tier available)
+8. **Voice** (optional) — ElevenLabs TTS, Whisper STT
 9. **Daemon** — install as system service for auto-start at login
 
-### Quick Start vs Advanced
+### Quick vs Advanced
 
-- **Quick Start** (default) — sensible defaults, minimal questions, chatting in ~2 minutes
-- **Advanced** (`clank setup --advanced`) — full control over gateway, models, channels, agents, voice
+| Mode | Command | What it does |
+|------|---------|-------------|
+| **Quick** | `clank setup` | Sensible defaults, minimal questions, chatting in ~2 minutes |
+| **Advanced** | `clank setup --advanced` | Full control over gateway, models, channels, agents, voice |
 
 ### Re-running Setup
 
-Setup preserves your existing config. API keys and settings you've already configured will be shown and can be kept with a single Enter.
+Setup preserves your existing config. API keys and settings you've already configured are shown and can be kept by pressing Enter.
 
 ---
 
-## Start Clank
+## Connecting Channels
 
-```bash
-# Start gateway + open TUI (recommended)
-clank
-
-# Or start the gateway in the background
-clank gateway start
-
-# Then use any interface:
-clank chat          # CLI chat (direct mode)
-clank tui           # TUI connected to gateway
-clank chat --web    # Web UI in browser
-clank dashboard     # Open Web UI
-```
-
-### How It Works
-
-1. The gateway starts as a background process on port 18790
-2. Telegram/Discord bots connect and stay alive
-3. The TUI opens for you to start chatting
-4. You can open additional interfaces simultaneously
-
-All interfaces share the same sessions and memory.
-
----
-
-## Connect Telegram
-
-During setup, or afterward:
+### Telegram
 
 1. Message [@BotFather](https://t.me/BotFather) on Telegram
 2. Send `/newbot` and follow the prompts
 3. Copy the bot token
-4. Run `clank setup` or edit `config.json5`:
+4. Run `clank setup` or add to config:
 
 ```json5
 {
@@ -148,35 +86,13 @@ During setup, or afterward:
 
 5. Restart the gateway: `clank gateway restart`
 
-### Telegram Commands
-
-| Command | Action |
-|---------|--------|
-| `/help` | Show all commands |
-| `/new` | Start a new session |
-| `/reset` | Clear current session |
-| `/compact` | Save state, clear context, continue |
-| `/status` | Agent, model, tasks, uptime |
-| `/agents` | List available agents |
-| `/agent <name>` | Switch to a different agent |
-| `/model` | Show current model + fallbacks |
-| `/tasks` | Show background tasks with IDs |
-| `/kill <id>` | Kill a specific background task |
-| `/killall` | Kill all running tasks |
-| `/think` | Toggle thinking display |
-| `/version` | Show Clank version |
-
-Commands are registered with Telegram's bot menu — they appear when you type `/`.
-
----
-
-## Connect Discord
+### Discord
 
 1. Go to [discord.com/developers/applications](https://discord.com/developers/applications)
-2. Create New Application → Bot → Copy Token
-3. Enable **MESSAGE CONTENT** intent under Bot → Privileged Gateway Intents
-4. Invite the bot to your server using the OAuth2 URL generator (needs Send Messages + Read Message History)
-5. Edit `config.json5`:
+2. Create New Application > Bot > Copy Token
+3. Enable **MESSAGE CONTENT** intent under Bot > Privileged Gateway Intents
+4. Invite the bot using the OAuth2 URL generator (needs Send Messages + Read Message History)
+5. Add to config:
 
 ```json5
 {
@@ -189,11 +105,35 @@ Commands are registered with Telegram's bot menu — they appear when you type `
 }
 ```
 
+### Signal
+
+Requires [signal-cli](https://github.com/AsamK/signal-cli) running in JSON-RPC daemon mode.
+
+1. Install and register signal-cli with your phone number
+2. Start signal-cli in daemon mode:
+
+```bash
+signal-cli -a +1234567890 daemon --socket /tmp/signal-cli.sock
+```
+
+3. Add to config:
+
+```json5
+{
+  channels: {
+    signal: {
+      enabled: true,
+      socketPath: "/tmp/signal-cli.sock",   // or TCP: "localhost:7583"
+      account: "+1234567890",
+      allowFrom: ["+1987654321"]             // phone numbers that can message
+    }
+  }
+}
+```
+
 ---
 
 ## Cloud Providers
-
-Add cloud providers as fallbacks or primary models. You can configure multiple during setup, or add them later.
 
 ### API Key Providers
 
@@ -211,19 +151,14 @@ Add cloud providers as fallbacks or primary models. You can configure multiple d
 }
 ```
 
-### OpenAI Codex (OAuth — ChatGPT Plus/Pro)
+### Codex OAuth (ChatGPT Plus/Pro)
 
 Use your existing ChatGPT subscription instead of paying API costs:
 
 ```bash
-clank auth login
-```
-
-This opens your browser for OpenAI login. After authenticating, the token is stored securely and auto-refreshes. Use models like `codex/codex-mini-latest`.
-
-```bash
-clank auth status   # Check stored credentials
-clank auth logout   # Remove credentials
+clank auth login     # Opens browser for OpenAI login
+clank auth status    # Check stored credentials
+clank auth logout    # Remove credentials
 ```
 
 ### Model Format
@@ -233,25 +168,25 @@ Models use the format `provider/model`:
 | Example | Provider |
 |---------|----------|
 | `ollama/qwen3.5` | Local Ollama |
+| `ollama/wrench` | Wrench via Ollama |
 | `anthropic/claude-sonnet-4-6` | Anthropic API |
 | `openai/gpt-4o` | OpenAI API |
-| `codex/codex-mini-latest` | OpenAI Codex (OAuth) |
+| `codex/codex-mini-latest` | Codex (OAuth) |
 | `google/gemini-2.0-flash` | Google Gemini |
 | `openrouter/meta-llama/llama-3.1-70b` | OpenRouter |
-| `opencode/claude-sonnet-4-6` | OpenCode |
 | `llamacpp/model-name` | llama.cpp server |
 | `lmstudio/model-name` | LM Studio |
 
-### Fallback Chain
+### Fallback Chains
 
-Set a primary model with cloud fallbacks:
+Set a primary model with automatic fallbacks:
 
 ```json5
 {
   agents: {
     defaults: {
       model: {
-        primary: "ollama/qwen3.5",
+        primary: "ollama/wrench",
         fallbacks: ["anthropic/claude-sonnet-4-6", "openai/gpt-4o"]
       }
     }
@@ -263,7 +198,7 @@ If Ollama is down, Clank falls back to Anthropic, then OpenAI.
 
 ---
 
-## Web Search (Brave)
+## Web Search
 
 1. Get a free API key at [brave.com/search/api](https://brave.com/search/api/)
 2. Add to config:
@@ -280,9 +215,11 @@ If Ollama is down, Clank falls back to Anthropic, then OpenAI.
 }
 ```
 
+The agent will use `web_search` and `web_fetch` automatically when it needs current information.
+
 ---
 
-## System Service
+## System Service (Daemon)
 
 Auto-start the gateway at login:
 
@@ -292,24 +229,24 @@ clank daemon install
 
 | Platform | Method |
 |----------|--------|
-| Windows | Task Scheduler (no admin needed) |
-| macOS | LaunchAgent |
-| Linux | systemd --user |
+| **Windows** | Task Scheduler (no admin needed) |
+| **macOS** | LaunchAgent (`~/Library/LaunchAgents/`) |
+| **Linux** | systemd user service (`~/.config/systemd/user/`) |
 
 ```bash
-clank daemon status     # Check if running
-clank daemon uninstall  # Remove
+clank daemon status      # Check if running
+clank daemon uninstall   # Remove
 ```
 
 ---
 
 ## Configuration
 
-Config lives at:
+Config file location:
 - **Windows:** `%APPDATA%\Clank\config.json5`
-- **macOS/Linux:** `~/.clank/config.json5`
+- **macOS / Linux:** `~/.clank/config.json5`
 
-JSON5 format (comments allowed, trailing commas OK). Supports `${ENV_VAR}` substitution:
+JSON5 format — comments allowed, trailing commas OK, unquoted keys. Supports `${ENV_VAR}` substitution:
 
 ```json5
 {
@@ -321,6 +258,8 @@ JSON5 format (comments allowed, trailing commas OK). Supports `${ENV_VAR}` subst
 }
 ```
 
+The gateway watches the config file and hot-reloads changes without restart.
+
 ---
 
 ## Update
@@ -329,35 +268,31 @@ JSON5 format (comments allowed, trailing commas OK). Supports `${ENV_VAR}` subst
 clank update
 ```
 
-Or manually:
-
-```bash
-npm install -g @clanklabs/clank
-```
+Or manually: `npm install -g @clanklabs/clank`
 
 ---
 
 ## Uninstall
 
-Remove everything:
-
 ```bash
 clank uninstall
 ```
 
-Or manually:
+This removes all data, the system service, and the npm package. Or manually:
 
 ```bash
-rm -rf ~/.clank          # macOS/Linux
-rd /s "%APPDATA%\Clank"  # Windows
+# macOS / Linux
+rm -rf ~/.clank
+npm uninstall -g @clanklabs/clank
+
+# Windows (PowerShell)
+Remove-Item -Recurse "$env:APPDATA\Clank"
 npm uninstall -g @clanklabs/clank
 ```
 
 ---
 
 ## Troubleshooting
-
-### `clank fix`
 
 Run diagnostics:
 
@@ -371,12 +306,12 @@ Checks config, gateway, models, sessions, and workspace. Shows issues with sugge
 
 | Issue | Fix |
 |-------|-----|
-| "fetch failed" | Model server not running. Start Ollama: `ollama serve` |
-| Port conflict | Change port in config.json5 |
-| Telegram not responding | Check bot token, ensure only one instance polls the same token |
-| Permission denied | Don't run as admin. Clank uses user-level paths. |
+| `fetch failed` | Model server not running. Start Ollama: `ollama serve` |
+| Port conflict on 18790 | Change port in config.json5: `gateway: { port: 18791 }` |
+| Telegram not responding | Check bot token. Ensure only one instance polls the same token. |
 | Model refuses to use tools | Restart gateway — system prompt updates on restart |
-| Telegram hangs on "typing" | Update to v1.7.2+ (typing indicator leak fixed). Restart gateway. |
+| Permission denied | Don't run as admin/root. Clank uses user-level paths. |
+| Web search returns errors | Check Brave API key in config. Free tier has rate limits. |
 
 ---
 

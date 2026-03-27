@@ -2,6 +2,8 @@
 
 An honest assessment of what Clank defends against and what it doesn't.
 
+**Version:** 1.8.1 | **Last Updated:** 2026-03-27
+
 ---
 
 ## Scope
@@ -125,13 +127,20 @@ There is no privilege separation between the gateway and the agent's tool execut
 
 ### Network Exposure
 
-Clank binds to `localhost` by default, but if you expose it to the network (directly or through a reverse proxy), the gateway has **no authentication layer** of its own. Anyone who can reach port 18790 can interact with the agent.
+Clank binds to `localhost` by default with token-based WebSocket authentication. However, if you expose the gateway to the network without additional protection, anyone with the auth token can interact with the agent.
 
-This is by design -- Clank is a local tool. If you need network access, you need to provide your own authentication (reverse proxy with auth, VPN, SSH tunnel, etc.).
+For remote access, use SSH tunneling, a VPN, or a reverse proxy with its own authentication layer.
 
 ### Channel-Level Trust
 
-Messages from Telegram and Discord channels are treated as user input. If someone has access to your Telegram bot or Discord server, they can instruct the agent. Channel-level access control is managed by Telegram/Discord's own permission systems, not by Clank.
+Messages from Telegram, Discord, and Signal are treated as user input. If someone has access to your Telegram bot, Discord server, or Signal number, they can instruct the agent.
+
+Clank provides per-channel allowlists:
+- **Telegram** — `allowFrom` with @usernames or numeric IDs
+- **Signal** — `allowFrom` with phone numbers
+- **Discord** — relies on Discord's own server permission system
+
+These are authentication mechanisms, not authorization. Any allowed user has full agent access.
 
 ---
 

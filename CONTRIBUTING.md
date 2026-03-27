@@ -1,14 +1,20 @@
 # Contributing to Clank
 
-Welcome! Clank is an open-source, local-first AI gateway. Contributions are welcome from everyone — whether you're fixing a typo, adding a provider, or training the next version of Wrench.
+Welcome! Clank is an open-source, local-first AI agent gateway. Contributions are welcome from everyone — whether you're fixing a typo, adding a provider, or training the next version of Wrench.
+
+---
 
 ## Ways to Contribute
 
-- **Code** — Gateway features, bug fixes, new providers, new tools
-- **Training Data** — New JSONL examples for the Wrench model
-- **Benchmark Prompts** — Test cases that push tool-calling accuracy
-- **Bug Reports** — File GitHub issues with steps to reproduce
-- **Documentation** — Improvements to README, guides, or inline comments
+| Type | Description |
+|------|-------------|
+| **Code** | Gateway features, bug fixes, new providers, new tools |
+| **Training Data** | New JSONL examples for the [Wrench model](https://github.com/ClankLabs/wrench-training-data) |
+| **Benchmark** | Test cases that push tool-calling accuracy |
+| **Bug Reports** | File [GitHub Issues](https://github.com/ClankLabs/Clank/issues) with steps to reproduce |
+| **Documentation** | Improvements to guides, inline comments, or wiki pages |
+
+---
 
 ## Getting Started
 
@@ -18,22 +24,45 @@ cd Clank
 npm install
 npm run build        # tsup builds to dist/
 clank setup          # first-time config wizard
+clank                # start gateway + TUI
 ```
 
-After setup, run `clank gateway` to start the daemon locally.
+### Project Structure
+
+```
+src/
+  adapters/        # Telegram, Discord, Signal adapters + shared commands
+  cli/             # CLI entry point, TUI, chat mode
+  config/          # Config loader, hot-reload, redaction
+  engine/          # AgentEngine (ReAct loop), ContextEngine, system prompt
+  gateway/         # WebSocket + HTTP server
+  memory/          # TF-IDF memory engine
+  providers/       # 8 provider adapters + prompt fallback
+  tasks/           # Sub-agent task registry
+  tools/           # 23 tool implementations + registry
+  workspace/       # Workspace file templates
+docs/              # User-facing documentation
+```
+
+---
 
 ## Code Style
 
-- TypeScript, with semicolons
-- Keep it simple. No over-engineering — if a function does one thing well, that's enough
-- Use descriptive names. Avoid abbreviations unless they're universal (e.g., `config`, `msg`)
-- Follow existing patterns in the codebase. When in doubt, look at a neighboring file
+- TypeScript with semicolons
+- Keep it simple — if a function does one thing well, that's enough
+- Use descriptive names. Avoid abbreviations unless universal (e.g., `config`, `msg`)
+- Follow existing patterns. When in doubt, look at a neighboring file
+- No unnecessary abstractions — three similar lines > a premature helper
+
+---
 
 ## Training Data Format
 
-Wrench training data lives in JSONL files. Each line is a self-contained JSON object with a `conversations` array. Roles are `system`, `user`, `assistant`, and `tool`.
+Wrench training data lives in the [wrench-training-data](https://github.com/ClankLabs/wrench-training-data) repo as JSONL files. Each line is a self-contained JSON object with a `conversations` array.
 
-Tool calls from the assistant use the ` ```tool_call ` fenced block format. Tool results come back as the `tool` role.
+Roles: `system`, `user`, `assistant`, `tool`.
+
+Tool calls use the fenced ` ```tool_call ` block format. Tool results use the `tool` role.
 
 **Example:**
 
@@ -49,7 +78,9 @@ Tool calls from the assistant use the ` ```tool_call ` fenced block format. Tool
 }
 ```
 
-Each example should demonstrate a realistic, complete interaction. Include the system prompt, at least one user turn, and the full tool-call round trip if tools are involved.
+Each example should demonstrate a realistic, complete interaction. Include the system prompt, at least one user turn, and the full tool-call round trip.
+
+---
 
 ## Pull Requests
 
@@ -58,6 +89,8 @@ Each example should demonstrate a realistic, complete interaction. Include the s
 3. Open a PR against `main`
 4. Keep PRs focused — one feature or fix per PR
 5. Describe **what** changed and **why** in the PR description
+
+---
 
 ## Issues
 
@@ -69,6 +102,12 @@ For bugs, include:
 - Steps to reproduce
 - Clank version (`clank --version`), OS, and provider/model if relevant
 
+---
+
 ## Community
 
-Follow [@Clank_Labs](https://x.com/Clank_Labs) on X for updates. Be respectful — we're all here to build something useful.
+- **Website:** [clanklabs.dev](https://clanklabs.dev)
+- **Twitter/X:** [@Clank_Labs](https://x.com/Clank_Labs)
+- **Reddit:** [u/ClankLabs](https://reddit.com/u/ClankLabs)
+
+Be respectful — we're all here to build something useful.

@@ -1,38 +1,42 @@
-# Clank Gateway Architecture
+# Architecture
 
-> **Deployment Note:** Clank is designed to run on dedicated hardware (dev machine, VM, or container) due to its full system access model. See the [Threat Model](THREAT_MODEL.md) and [Security Policy](../SECURITY.md) for detailed security considerations.
+Technical reference for the Clank Gateway internals.
+
+> **Deployment Note:** Clank is designed to run on dedicated hardware (dev machine, VM, or container) due to its full system access model. See the [Threat Model](THREAT_MODEL.md) for detailed security considerations.
+
+---
 
 ## Overview
 
 Clank Gateway is a single-daemon AI agent gateway that exposes both WebSocket and HTTP interfaces on port **18790**. All communication uses JSON-RPC 2.0. One process handles every connected channel, every active agent, and every tool invocation.
 
 ```
-                         +------------------+
-                         |   Clank Gateway  |
-                         |   (port 18790)   |
-                         +--------+---------+
-                                  |
-              +-------------------+-------------------+
-              |                   |                   |
-         WebSocket             HTTP              Channels
-        (real-time)          (REST)         (Telegram, Discord,
-                                             Web UI, CLI, TUI)
-              |                   |                   |
-              +-------------------+-------------------+
-                                  |
-                          +-------+-------+
-                          | AgentEngine   |
-                          | (ReAct loop)  |
-                          +-------+-------+
-                                  |
-                    +-------------+-------------+
-                    |             |             |
-              ContextEngine   ToolRouter   ProviderRouter
-              (compaction,    (23 tools)   (8 providers)
-               budgeting)
-                    |
-              MemoryEngine
-              (TF-IDF, decay)
+                          ┌───────────────────┐
+                          │   Clank Gateway    │
+                          │   (port 18790)     │
+                          └─────────┬──────────┘
+                                    │
+               ┌────────────────────┼────────────────────┐
+               │                    │                    │
+          WebSocket              HTTP              Adapters
+         (real-time)           (REST)        (Telegram, Discord,
+                                              Signal, Web, CLI, TUI)
+               │                    │                    │
+               └────────────────────┼────────────────────┘
+                                    │
+                           ┌────────┴────────┐
+                           │   AgentEngine   │
+                           │   (ReAct loop)  │
+                           └────────┬────────┘
+                                    │
+                     ┌──────────────┼──────────────┐
+                     │              │              │
+               ContextEngine   ToolRouter    ProviderRouter
+               (compaction,    (23 tools)    (8 providers)
+                budgeting)
+                     │
+               MemoryEngine
+               (TF-IDF, decay)
 ```
 
 The gateway is stateful per-session. Each session tracks its own conversation history, context window, and active agent configuration.
@@ -45,37 +49,32 @@ The gateway is stateful per-session. Each session tracks its own conversation hi
 
 The core execution model is ReAct: **Reason, Act, Observe, Repeat.**
 
-1. **Reason** -- The model receives the conversation history plus context and decides what to do next.
-2. **Act** -- If the model emits a tool call, the gateway executes it.
-3. **Observe** -- The tool result is appended to the conversation.
-4. **Repeat** -- The loop continues until the model produces a final text response with no tool calls, or hits a configured iteration limit.
+1. **Reason** — the model receives conversation history plus context and decides what to do
+2. **Act** — if the model emits a tool call, the gateway executes it
+3. **Observe** — the tool result is appended to the conversation
+4. **Repeat** — the loop continues until the model produces a final text response or hits an iteration limit
 
-This loop powers every interaction, whether it arrives from the CLI, Telegram, or the Web UI. The agent keeps looping autonomously until it decides it has enough information to respond.
+This loop powers every interaction regardless of which interface it arrives from.
 
 ### ContextEngine (Two-Tier Compaction)
 
 Context windows are finite. The ContextEngine manages what stays and what gets compressed.
 
-**Tier 1 -- Mechanical compaction.** Old messages are truncated mechanically: tool results get trimmed, verbose outputs get cut to a summary line. This is fast and deterministic, no LLM call required.
+**Tier 1 — Mechanical compaction.** Old messages are truncated deterministically: tool results get trimmed, verbose outputs get cut to a summary line. Fast, no LLM call required.
 
-**Tier 2 -- LLM-summarized compaction.** When tier-1 isn't enough, the engine asks the model to summarize older conversation segments into a compact block. This preserves semantic meaning while dramatically reducing token count.
+**Tier 2 — LLM-summarized compaction.** When tier 1 isn't enough, the engine asks the model to summarize older conversation segments. Preserves semantic meaning while dramatically reducing token count.
 
 ### Token Budgeting
 
-Every message sent to the provider is budgeted against the model's context limit. The engine tracks token usage across:
-
-- System prompt
-- Memory injections
-- Conversation history
-- Pending tool results
+Every message sent to the provider is budgeted against the model's context limit. The engine tracks token usage across system prompt, memory injections, conversation history, and pending tool results.
 
 ### Proactive Auto-Compaction
 
-Compaction doesn't wait for failures. It triggers in three scenarios:
+Compaction triggers in three scenarios:
 
-1. **Post-tool** -- After every tool result, the engine checks if context is getting heavy.
-2. **Pre-send safety (90%)** -- Before sending any request to the provider, if context usage exceeds 90% of the model's limit, compaction runs automatically.
-3. **Context error recovery** -- If a provider returns a context-length error despite budgeting, the engine compacts aggressively and retries.
+1. **Post-tool** — after every tool result, checks if context is getting heavy
+2. **Pre-send safety (90%)** — before any provider request, if context exceeds 90% of the model's limit
+3. **Context error recovery** — if a provider returns a context-length error, compacts aggressively and retries
 
 ---
 
@@ -83,24 +82,26 @@ Compaction doesn't wait for failures. It triggers in three scenarios:
 
 Eight provider adapters, all implementing the same interface:
 
-| Provider | What it connects to | Notes |
-|----------|-------------------|-------|
-| **Ollama** | Local Ollama instance | Default for local models |
-| **Anthropic** | Claude API | Streaming, tool use |
-| **OpenAI** | OpenAI API | GPT-4o, o1, etc. |
+| Provider | Connects to | Notes |
+|----------|-------------|-------|
+| **Ollama** | Local Ollama instance | Default for local models, auto-detected |
+| **Anthropic** | Claude API | Streaming, native tool use |
+| **OpenAI** | OpenAI API | GPT-4o, o-series, etc. |
 | **OpenAI (compatible)** | LM Studio, vLLM, llama.cpp | Any OpenAI-compatible endpoint |
 | **Google Gemini** | Gemini API | Native function calling |
-| **OpenRouter** | OpenRouter | Multi-model routing |
-| **OpenCode** | OpenCode servers | Community models |
-| **Codex** | Codex (OAuth) | OAuth-authenticated access |
+| **OpenRouter** | OpenRouter | Multi-model routing via one key |
+| **OpenCode** | OpenCode servers | Subscription-based access |
+| **Codex** | OpenAI Codex (OAuth) | Uses ChatGPT Plus/Pro subscription |
 
-**PromptFallbackProvider** wraps any provider to handle models that don't support native tool calling. It injects tool definitions into the system prompt and parses structured output from the model's text response. This is how local models without function-calling support can still use all 23 tools.
+**PromptFallbackProvider** wraps any provider whose models lack native tool calling. It injects tool definitions into the system prompt and parses structured output from the model's text response. This is how every local model gets full tool support automatically.
 
 ---
 
 ## Tools
 
 ### Core Tools (10)
+
+Available at all tool tiers (core, auto, full):
 
 | Tool | Purpose |
 |------|---------|
@@ -109,23 +110,31 @@ Eight provider adapters, all implementing the same interface:
 | `edit_file` | Surgical string replacement in files |
 | `list_directory` | List files and directories |
 | `bash` | Execute shell commands |
-| `search_files` | Regex search across files (ripgrep-style) |
+| `search_files` | Regex search across files |
 | `glob_files` | Find files by glob pattern |
-| `git` | Git operations (status, diff, commit, etc.) |
-| `web_search` | Search the web via SearXNG or configured engine |
-| `web_fetch` | Fetch and extract content from URLs |
+| `git` | Git operations (status, diff, commit, log, etc.) |
+| `web_search` | Search the web via Brave Search API |
+| `web_fetch` | Fetch and extract content from URLs (HTML auto-converted to readable text) |
 
 ### Self-Configuration Tools (9)
 
-These let the agent modify its own configuration at runtime -- switching models, adjusting behavior, managing agents. The agent can reconfigure itself in response to user requests without requiring manual config edits.
+Let the agent modify its own configuration at runtime — switching models, adjusting behavior, managing agents, creating cron jobs. The agent can reconfigure itself through conversation.
 
 ### Voice Tools (3)
 
-Speech-to-text, text-to-speech, and voice session management for voice interaction support.
+Text-to-speech (ElevenLabs), speech-to-text (Whisper/Groq), and voice listing for voice interaction support.
 
 ### File Tool (1)
 
-Extended file operations beyond the core read/write/edit (e.g., move, copy, permissions).
+File sharing for Telegram document uploads and cross-channel file transfer.
+
+### Tool Tiers
+
+| Tier | Tools | Best for |
+|------|-------|----------|
+| `full` | All 23 tools | Capable models (Claude, GPT-4o, Wrench 35B) |
+| `auto` | 10 core + dynamic additions based on keywords | Smart default for local models |
+| `core` | 10 core tools | Smaller models that get confused with too many tools |
 
 ---
 
@@ -133,53 +142,60 @@ Extended file operations beyond the core read/write/edit (e.g., move, copy, perm
 
 ### Telegram (grammY)
 
-Full bot integration using the grammY framework. Supports text, voice messages, inline commands, and message threading. Each Telegram chat maps to a Clank session.
+Full bot integration with streaming, inline tool approvals (InlineKeyboard with Approve / Always / Deny), voice messages, photo/document handling, slash commands, per-chat thinking toggle, and tool emoji indicators. Each chat maps to a Clank session.
 
 ### Discord (discord.js)
 
-Discord bot using discord.js. Supports slash commands, text channels, DMs, and thread-based conversations. Each Discord channel or thread maps to a session.
+Bot with streaming, inline tool approvals (ActionRow with Button components), slash commands, and thread support. Each channel or thread maps to a session.
+
+### Signal (signal-cli)
+
+Integration via signal-cli JSON-RPC daemon. DM and group support, phone number allowlist, slash commands, tool indicators. Zero new npm dependencies. Auto-approves tools (no interactive button API).
 
 ### Web UI (8-Panel SPA)
 
-A local single-page application with eight panels: chat, file browser, terminal, agent config, memory viewer, session manager, model selector, and system status. Connects to the gateway over WebSocket.
+Local single-page application: Chat, Agents, Sessions, Config, Pipelines, Cron, Logs, Channels. Connects to the gateway over WebSocket.
 
 ### CLI
 
-Direct terminal interaction. The `clank chat` command opens a REPL that talks to the gateway. Supports streaming responses, tool call display, and session management.
+Direct terminal REPL via `clank chat`. Supports streaming responses, tool call display, and session management. No gateway required.
 
 ### TUI
 
-Terminal UI mode (`clank tui`) providing a richer terminal experience with panels, scrolling history, and visual tool call feedback.
+Rich terminal UI via `clank tui` with panels, scrolling history, tool cards, thinking blocks, and slash commands.
+
+### Shared Command Handler
+
+All adapters (Telegram, Discord, Signal) share a unified command handler (`src/adapters/commands.ts`). Utility functions like `toolEmoji()` and `splitMessage()` are shared across all adapters.
 
 ---
 
 ## Multi-Agent
 
-Clank supports multiple named agents, each with independent configuration:
-
-- **Config-driven routing** -- Each agent is defined in `config.json5` with its own model, system prompt, and tool access.
-- **Per-agent model assignment** -- One agent can use Claude, another Ollama, another GPT-4o. Each agent routes to its configured provider.
-- **Sub-agent spawning** -- Agents can spawn sub-agents for background tasks. Depth control prevents runaway recursion. Concurrent limits cap how many sub-agents can run simultaneously.
-- **Parent-child tree** -- Sub-agents report back to their parent. The parent can kill, steer, or message child agents.
+- **Config-driven routing** — each agent defined in config with its own model, system prompt, and tool access
+- **Per-agent model assignment** — one agent can use Claude, another Ollama, another GPT-4o
+- **Sub-agent spawning** — agents spawn sub-agents for background tasks with depth control and concurrent limits (default: 8 max)
+- **Parent-child tree** — sub-agents report to their parent; parent can kill, steer, or message children
+- **Cascade kill** — killing a parent kills all descendants
 
 ---
 
 ## Memory
 
-The memory system uses **TF-IDF cosine similarity with decay scoring** to surface relevant memories.
+**TF-IDF cosine similarity with decay scoring** surfaces relevant memories.
 
-- **Auto-persistence** -- Memories are saved automatically as conversations progress. The agent decides what's worth remembering.
-- **Decay scoring** -- Older memories lose relevance weight over time, so recent context naturally ranks higher.
-- **Smart injection for local models** -- Instead of injecting the full `MEMORY.md` file into context (which wastes tokens for smaller models), the engine runs relevance matching against the current conversation and injects only the memories that score above a threshold.
-
-Memories persist as plain files on disk. No database, no external service.
+- **Auto-persistence** — memories saved automatically as conversations progress
+- **Decay scoring** — older memories lose relevance weight over time
+- **Smart injection for local models** — instead of injecting the full MEMORY.md (wastes tokens), the engine runs relevance matching and injects only memories that score above a threshold
+- **Plain files on disk** — no database, no external service
 
 ---
 
 ## Sessions
 
-- **Cross-channel normalized keys** -- A session key is normalized so that the same logical conversation can be tracked across channels. A Telegram chat and a CLI session can share context if configured to do so.
-- **JSON persistence** -- Sessions are saved as JSON files on disk. They include conversation history, compacted context, active agent state, and metadata.
+- **Cross-channel normalized keys** — the same conversation tracked across channels
+- **JSON persistence** — sessions saved as JSON with conversation history, compacted context, active agent state, and metadata
+- **Per-channel queuing** — messages from the same chat are processed sequentially to prevent race conditions
 
 ---
 
@@ -187,26 +203,28 @@ Memories persist as plain files on disk. No database, no external service.
 
 | Layer | Implementation |
 |-------|---------------|
-| **Bash blocklist** | 25 patterns matching dangerous commands (`rm -rf /`, `mkfs`, `dd if=`, `:(){`, etc.) |
-| **Config redaction** | API keys and secrets are never exposed through the RPC API or tool outputs |
-| **SSRF protection** | Blocks requests to private IPs (10.x, 172.16-31.x, 192.168.x), link-local, metadata endpoints (169.254.169.254), and IPv6 equivalents |
-| **AES-256-GCM** | Stored credentials are encrypted at rest |
-| **Rate limiting** | 20 requests per minute per session by default |
-| **Filename sanitization** | Path traversal prevention on all file operations |
-| **System file protection** | The agent won't modify files outside the workspace unless the user explicitly names them |
+| **Bash blocklist** | 25 patterns matching destructive commands |
+| **Config redaction** | API keys and secrets never exposed through RPC or tool outputs |
+| **SSRF protection** | Blocks private IPs, link-local, metadata endpoints, IPv6 equivalents |
+| **AES-256-GCM** | Stored credentials encrypted at rest |
+| **Rate limiting** | 20 requests per minute per session |
+| **Path containment** | `guardPath()` prevents traversal outside workspace |
+| **System file protection** | Agent won't modify files outside workspace unless user explicitly names them |
+| **Prototype pollution** | `__proto__`, `constructor`, `prototype` blocked on all input |
+| **Supply chain** | All deps pinned to exact versions, lockfile committed, npm 2FA |
 
-See [THREAT_MODEL.md](THREAT_MODEL.md) for a full security assessment including known limitations.
+See [THREAT_MODEL.md](THREAT_MODEL.md) for a full assessment including known limitations.
 
 ---
 
 ## Config
 
 Configuration lives at:
-- **Windows:** `%APPDATA%/Clank/config.json5`
-- **Linux/macOS:** `~/.clank/config.json5`
+- **Windows:** `%APPDATA%\Clank\config.json5`
+- **macOS / Linux:** `~/.clank/config.json5`
 
-**JSON5 format** -- Supports comments, trailing commas, unquoted keys, and multi-line strings.
+**JSON5 format** — supports comments, trailing commas, unquoted keys, multi-line strings.
 
-**Environment variable substitution** -- Use `${ENV_VAR}` in config values. The gateway resolves them at startup.
+**Environment variable substitution** — `${ENV_VAR}` resolved at startup.
 
-**Hot-reload** -- The gateway watches the config file. Changes take effect without restarting the daemon. Agent definitions, model assignments, and channel configs can all be updated live.
+**Hot-reload** — the gateway watches the config file. Changes take effect without restart.

@@ -26,8 +26,10 @@ The system prompt is assembled from:
 - **Workspace files** -- User-editable files that customize agent behavior:
   - `SOUL.md` -- Personality and communication style.
   - `USER.md` -- Information about the user (preferences, skill level, project context).
-  - `RULES.md` -- Workspace-specific rules the agent must follow.
+  - `IDENTITY.md` -- The agent's name, personality traits, emoji.
   - `MEMORY.md` -- Persistent memories the agent accumulates over time.
+  - `TOOLS.md` -- Tool access configuration.
+  - `AGENTS.md` -- Agent definitions.
 
 All workspace files are plain text in your project directory. Edit them however you want. The agent adapts.
 
@@ -114,7 +116,7 @@ Behavioral guardrails live in the system prompt. How well the agent follows them
 
 ### Non-Interactive Channels Need Attention
 
-When the agent runs in Telegram or Discord, it acts autonomously -- there's no terminal open where you can see what it's doing in real time. Review conversation history periodically, especially when the agent is running long tasks or using bash.
+When the agent runs in Telegram, Discord, or Signal, it acts autonomously. Telegram and Discord now provide inline tool approval buttons (Approve / Always / Deny), but Signal auto-approves all tools. Review conversation history periodically, especially for long-running tasks.
 
 ---
 
