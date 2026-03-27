@@ -107,13 +107,14 @@ Scores **113/120 (94.2%)** on our 40-prompt agentic benchmark across 8 categorie
 - **Min GPU:** 16GB VRAM
 - **Download:** [HuggingFace](https://huggingface.co/ClankLabs/Wrench-35B-A3B-Q4_K_M-GGUF)
 
-### Wrench 8B (Compact)
+### Wrench 9B (Compact)
 
 Scores **105/120 (87.5%)** on the same benchmark. Designed for machines with less VRAM.
 
-- **Base:** Qwen3.5-9B (dense, 8B parameters)
+- **Base:** Qwen3.5-9B (dense)
 - **Format:** Q4_K_M GGUF (~5GB)
 - **Min GPU:** 8GB VRAM
+- **Download:** [HuggingFace](https://huggingface.co/ClankLabs/Wrench-9B-Q4_K_M-GGUF)
 
 ```bash
 # Ollama
