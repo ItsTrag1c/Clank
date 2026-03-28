@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.10.0] — 2026-03-28
+
+### Added
+- **Sub-agents as core tool** — `spawn_task` is now a core tool available at all tiers. System prompt explicitly instructs agents on when and how to delegate to sub-agents.
+- **Role-aware sub-agents** — new `role` parameter on `spawn_task`: `architect` (plan/design), `executor` (code/test/deploy), `auditor` (review/verify). Role context is injected into the sub-agent's prompt and RUNNER.md playbook.
+- **Project context tool** — new `project_context` tool with `scan` (detect tech stack + directory tree from 30+ manifest files), `important_files` (git-active files + entry points), and `summarize` (auto-generate `.clank.md`). Available at all tiers.
+- **Metrics collector** — in-memory tracking of request counts, latency (p50/p95/avg), token usage, task lifecycle, and errors. Exposed via `GET /metrics` HTTP endpoint and `metrics.get` RPC method.
+- **Health dashboard panel** — new 9th panel in the web dashboard showing live metrics cards, active alerts, and per-agent request breakdown. Auto-refreshes every 10 seconds.
+- **Alerts system** — `metrics.alerts` RPC method and `health` tool `alerts` action detect high latency, task failure rates, memory pressure, and error spikes.
+- **Auto-tier triggers** — `spawn_task` and `project_context` are dynamically injected in "auto" tier when relevant keywords are detected in user messages.
+
+### Changed
+- **TOOLS.md** — added Sub-Agent Tools section with role descriptions, workflow patterns, and usage examples.
+- **RUNNER.md** — added Roles section (Architect, Executor, Auditor, Custom) with per-role tool preferences and output expectations.
+
+---
+
 ## [1.9.1] — 2026-03-27
 
 ### Fixed

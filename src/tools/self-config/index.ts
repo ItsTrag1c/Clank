@@ -10,6 +10,7 @@ export { ttsTool, sttTool, voiceListTool } from "./voice-tool.js";
 export { fileShareTool } from "./file-share-tool.js";
 export { taskTool } from "./task-tool.js";
 export { healthTool } from "./health-tool.js";
+export { contextTool } from "./context-tool.js";
 
 import type { ToolRegistry } from "../registry.js";
 import { configTool } from "./config-tool.js";
@@ -24,6 +25,7 @@ import { ttsTool, sttTool, voiceListTool } from "./voice-tool.js";
 import { fileShareTool } from "./file-share-tool.js";
 import { taskTool } from "./task-tool.js";
 import { healthTool } from "./health-tool.js";
+import { contextTool } from "./context-tool.js";
 
 /** Register all self-configuration tools into a registry */
 export function registerSelfConfigTools(registry: ToolRegistry): void {
@@ -41,4 +43,5 @@ export function registerSelfConfigTools(registry: ToolRegistry): void {
   registry.register(fileShareTool);
   registry.register(taskTool);
   registry.register(healthTool);
+  registry.register(contextTool);
 }

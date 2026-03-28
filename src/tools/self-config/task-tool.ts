@@ -50,6 +50,10 @@ export const taskTool: Tool = {
           type: "string",
           description: "Task ID (required for status, kill, steer, message)",
         },
+        role: {
+          type: "string",
+          description: "Sub-agent role: 'architect' (plan/review/design), 'executor' (code/test/deploy), 'auditor' (review diffs/security/verify), or a custom role string. Shapes the sub-agent's focus.",
+        },
         timeoutMs: {
           type: "number",
           description: "Timeout in ms (optional, default 300000 = 5 minutes)",
@@ -112,9 +116,21 @@ export const taskTool: Tool = {
         }
 
         const agentId = args.agentId as string;
-        const prompt = args.prompt as string;
-        const label = (args.label as string) || prompt.slice(0, 60);
+        const rawPrompt = args.prompt as string;
+        const role = args.role as string | undefined;
+        const label = (args.label as string) || rawPrompt.slice(0, 60);
         const timeoutMs = (args.timeoutMs as number) || 300_000;
+
+        // Inject role context into the sub-agent's prompt
+        const ROLE_PREFIXES: Record<string, string> = {
+          architect: "[Role: Architect] Focus on planning and design. Prefer read-only tools. Catch edge cases, identify risks, and propose solutions before code is written.\n\n",
+          executor: "[Role: Executor] Focus on implementation. Write code, run tests, deploy changes. Use the full tool set to get the job done.\n\n",
+          auditor: "[Role: Auditor] Focus on review and verification. Read diffs, check for security issues, verify correctness. Prefer read-only tools + bash for running tests.\n\n",
+        };
+        const rolePrefix = role
+          ? (ROLE_PREFIXES[role.toLowerCase()] || `[Role: ${role}]\n\n`)
+          : "";
+        const prompt = rolePrefix + rawPrompt;
 
         try {
           const taskId = await ctx.spawnTask({ agentId, prompt, label, timeoutMs });

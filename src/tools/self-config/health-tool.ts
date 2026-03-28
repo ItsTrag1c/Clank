@@ -20,7 +20,8 @@ export const healthTool: Tool = {
       "Monitor system health and self-heal. Actions: " +
       "'diagnose' (full system check — providers, adapters, memory, disk), " +
       "'restart_adapter' (restart a failed channel adapter by name: telegram, discord, signal), " +
-      "'check_provider' (test connectivity to a specific provider: ollama, anthropic, openai, google).",
+      "'check_provider' (test connectivity to a specific provider: ollama, anthropic, openai, google), " +
+      "'alerts' (check for active alerts: high latency, failed adapters, task failures, memory pressure).",
     parameters: {
       type: "object",
       properties: {
@@ -42,8 +43,8 @@ export const healthTool: Tool = {
 
   validate(args: Record<string, unknown>): ValidationResult {
     const action = args.action as string;
-    if (!["diagnose", "restart_adapter", "check_provider"].includes(action)) {
-      return { ok: false, error: "action must be 'diagnose', 'restart_adapter', or 'check_provider'" };
+    if (!["diagnose", "restart_adapter", "check_provider", "alerts"].includes(action)) {
+      return { ok: false, error: "action must be 'diagnose', 'restart_adapter', 'check_provider', or 'alerts'" };
     }
     if ((action === "restart_adapter" || action === "check_provider") && !args.target) {
       return { ok: false, error: `'target' is required for ${action}` };
@@ -62,6 +63,8 @@ export const healthTool: Tool = {
         return checkProvider(target!);
       case "restart_adapter":
         return restartAdapter(target!);
+      case "alerts":
+        return checkAlerts();
       default:
         return "Unknown action";
     }
@@ -205,4 +208,61 @@ async function restartAdapter(name: string): Promise<string> {
   }
 
   return `To restart the ${name} adapter, restart the gateway: \`clank gateway restart\``;
+}
+
+async function checkAlerts(): Promise<string> {
+  const config = await loadConfig();
+  const port = config.gateway.port || DEFAULT_PORT;
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/metrics`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return "Could not fetch metrics from gateway.";
+
+    const metrics = await res.json() as {
+      latency: { avg: number; p95: number };
+      tasks: { completed: number; failed: number; timedOut: number; active: number };
+      errors: { total: number; recent: Array<{ time: number; message: string }> };
+    };
+
+    const alerts: string[] = [];
+
+    // High latency
+    if (metrics.latency.avg > 30_000) {
+      alerts.push(`- **WARNING:** High average latency: ${Math.round(metrics.latency.avg / 1000)}s`);
+    }
+    if (metrics.latency.p95 > 60_000) {
+      alerts.push(`- **CRITICAL:** P95 latency over 60s: ${Math.round(metrics.latency.p95 / 1000)}s`);
+    }
+
+    // Task failure rate
+    const totalTasks = metrics.tasks.completed + metrics.tasks.failed + metrics.tasks.timedOut;
+    if (totalTasks >= 5) {
+      const failRate = (metrics.tasks.failed + metrics.tasks.timedOut) / totalTasks;
+      if (failRate > 0.5) {
+        alerts.push(`- **CRITICAL:** Task failure rate: ${Math.round(failRate * 100)}%`);
+      }
+    }
+
+    // Memory usage
+    const mem = process.memoryUsage();
+    const heapPercent = mem.heapUsed / mem.heapTotal;
+    if (heapPercent > 0.8) {
+      alerts.push(`- **WARNING:** Heap usage: ${Math.round(heapPercent * 100)}%`);
+    }
+
+    // Recent errors
+    const fiveMinAgo = Date.now() - 300_000;
+    const recentErrors = metrics.errors.recent.filter((e) => e.time > fiveMinAgo);
+    if (recentErrors.length > 5) {
+      alerts.push(`- **WARNING:** ${recentErrors.length} errors in last 5 minutes`);
+    }
+
+    if (alerts.length === 0) {
+      return "## Alerts\n\nNo active alerts. All systems normal.";
+    }
+
+    return `## Active Alerts\n\n${alerts.join("\n")}`;
+  } catch {
+    return "Could not reach gateway to check alerts. Is the gateway running?";
+  }
 }

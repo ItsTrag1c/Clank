@@ -97,6 +97,10 @@ export const METHODS = {
   LOG_TAIL: "log.tail",
   LOG_QUERY: "log.query",
 
+  // Metrics
+  METRICS_GET: "metrics.get",
+  METRICS_ALERTS: "metrics.alerts",
+
   // Legacy compat
   CONNECT: "connect",
   SEND_MESSAGE: "sendMessage",

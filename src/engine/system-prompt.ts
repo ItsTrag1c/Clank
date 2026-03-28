@@ -46,6 +46,7 @@ export async function buildSystemPrompt(opts: {
   thinking?: "on" | "off" | "auto";
   spawnDepth?: number;
   isLocal?: boolean;
+  canSpawn?: boolean;
 }): Promise<string> {
   const parts: string[] = [];
   const compact = opts.compact ?? false;
@@ -99,7 +100,8 @@ export async function buildSystemPrompt(opts: {
       "NEVER apologize and refuse. If asked to do something, DO IT with your tools or explain what tool you need.",
       "When asked about current events, docs, APIs, errors, or anything uncertain — USE web_search to look it up, then web_fetch to read pages. Do NOT guess.",
       "Do NOT modify files outside your workspace or the user's current directory unless the user explicitly names the file.",
-    ].join(" "));
+      opts.canSpawn ? "You can delegate work to background sub-agents using spawn_task with roles: architect, executor, auditor." : "",
+    ].filter(Boolean).join(" "));
   } else {
     parts.push("## CRITICAL: You Are a Local Agent With Tools");
     parts.push([
@@ -116,6 +118,9 @@ export async function buildSystemPrompt(opts: {
     parts.push("5. You can configure yourself — use the config, channel, agent, and model management tools to modify your own setup.");
     parts.push("6. **Web search:** When the user asks about current events, recent news, documentation, APIs, packages, error messages, or anything you're unsure about — USE `web_search` to look it up. Then use `web_fetch` to read the full page. Do NOT guess or hallucinate answers when you can search.");
     parts.push("7. Do NOT modify, delete, or overwrite files outside your workspace directory or the user's current working directory unless the user explicitly names the file. System files, OS directories, and config dotfiles are off-limits by default.");
+    if (opts.canSpawn) {
+      parts.push("8. **Sub-agents:** You can delegate work to background sub-agents using `spawn_task`. Use sub-agents for: parallel research, long-running tasks, code review while you continue working, or any task that benefits from a separate focused worker. Assign a role (architect, executor, auditor) to focus the sub-agent. Check results with spawn_task action='list' or action='status'.");
+    }
   }
 
   // Thinking control

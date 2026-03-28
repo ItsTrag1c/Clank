@@ -43,6 +43,7 @@ import {
   PROTOCOL_VERSION,
   DEFAULT_PORT,
 } from "./protocol.js";
+import { MetricsCollector } from "./metrics.js";
 
 interface ClientConnection {
   ws: WebSocket;
@@ -68,6 +69,7 @@ export class GatewayServer {
   private taskRegistry: TaskRegistry;
   private authProfileStore: AuthProfileStore;
   private adapters: ChannelAdapter[] = [];
+  private metrics: MetricsCollector;
   private running = false;
   /** Rate limiting: track message timestamps per session */
   private rateLimiter = new Map<string, number[]>();
@@ -84,6 +86,12 @@ export class GatewayServer {
     this.pluginLoader = new PluginLoader();
     this.taskRegistry = new TaskRegistry();
     this.authProfileStore = new AuthProfileStore();
+    this.metrics = new MetricsCollector();
+  }
+
+  /** Get the metrics collector (for HTTP endpoint and RPC) */
+  getMetrics(): MetricsCollector {
+    return this.metrics;
   }
 
   /** Get the task registry (for adapters to list tasks) */
@@ -239,7 +247,15 @@ export class GatewayServer {
 
     const sessionKey = deriveSessionKey(context);
     const engine = await this.getOrCreateEngine(sessionKey, agentId, context.channel);
-    return engine.sendMessage(text);
+    const start = Date.now();
+    try {
+      const result = await engine.sendMessage(text);
+      this.metrics.recordRequest(agentId, Date.now() - start);
+      return result;
+    } catch (err) {
+      this.metrics.recordError(err instanceof Error ? err.message : String(err));
+      throw err;
+    }
   }
 
   /**
@@ -334,12 +350,15 @@ export class GatewayServer {
     engine.on("confirm-needed", confirmFn);
     listeners.push(["confirm-needed", confirmFn]);
 
+    const start = Date.now();
     try {
       console.log(`  Streaming: sending message to engine (session: ${sessionKey})`);
       const result = await engine.sendMessage(text);
+      this.metrics.recordRequest(agentId, Date.now() - start);
       console.log(`  Streaming: engine returned (${result?.length || 0} chars)`);
       return result;
     } catch (err) {
+      this.metrics.recordError(err instanceof Error ? err.message : String(err));
       console.error(`  Streaming: engine error — ${err instanceof Error ? err.message : err}`);
       throw err;
     } finally {
@@ -399,11 +418,17 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.9.1",
+        version: "1.10.0",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
       }));
+      return;
+    }
+
+    if (url === "/metrics") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(this.metrics.snapshot()));
       return;
     }
 
@@ -467,6 +492,7 @@ export class GatewayServer {
       eventSeq: 0,
     };
     this.clients.set(ws, client);
+    this.metrics.setClientCount(this.clients.size);
 
     ws.on("message", (data) => {
       const frame = parseFrame(data.toString());
@@ -479,10 +505,12 @@ export class GatewayServer {
 
     ws.on("close", () => {
       this.clients.delete(ws);
+      this.metrics.setClientCount(this.clients.size);
     });
 
     ws.on("error", () => {
       this.clients.delete(ws);
+      this.metrics.setClientCount(this.clients.size);
     });
   }
 
@@ -535,7 +563,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.9.1",
+      version: "1.10.0",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -764,6 +792,15 @@ export class GatewayServer {
           this.sendResponse(client, frame.id, true, []);
           break;
 
+        // === Metrics ===
+        case "metrics.get":
+          this.sendResponse(client, frame.id, true, this.metrics.snapshot());
+          break;
+
+        case "metrics.alerts":
+          this.sendResponse(client, frame.id, true, this.metrics.alerts());
+          break;
+
         default:
           this.sendResponse(client, frame.id, false, undefined, `Unknown method: ${frame.method}`);
       }
@@ -878,6 +915,7 @@ export class GatewayServer {
     // Sub-agents (spawnDepth > 0) get RUNNER.md injected for structured execution
     const compact = agentConfig?.compactPrompt ?? this.config.agents.defaults.compactPrompt ?? false;
     const thinking = agentConfig?.thinking ?? this.config.agents.defaults.thinking ?? "auto";
+    const maxSpawnDepthCfg = this.config.agents.defaults.subagents?.maxSpawnDepth ?? 1;
     const systemPrompt = await buildSystemPrompt({
       identity,
       workspaceDir: identity.workspace,
@@ -886,6 +924,7 @@ export class GatewayServer {
       thinking,
       spawnDepth: currentDepth,
       isLocal: resolved.isLocal,
+      canSpawn: currentDepth < maxSpawnDepthCfg,
     });
 
     // Inject memory context into system prompt — use a smaller budget for
@@ -898,7 +937,7 @@ export class GatewayServer {
       ? systemPrompt + "\n\n---\n\n" + memoryBlock
       : systemPrompt;
 
-    const maxSpawnDepth = this.config.agents.defaults.subagents?.maxSpawnDepth ?? 1;
+    const maxSpawnDepth = maxSpawnDepthCfg;
     const maxConcurrent = this.config.agents.defaults.subagents?.maxConcurrent ?? 8;
 
     // Agents within the depth limit can spawn sub-agents
@@ -930,11 +969,13 @@ export class GatewayServer {
       // Create sub-agent engine in the background
       const subSessionKey = `task:${task.id}`;
       const subEngine = await this.getOrCreateEngine(subSessionKey, opts.agentId, "task");
+      this.metrics.recordTaskSpawned();
 
       // Run with timeout — fire and forget
       const timeout = setTimeout(() => {
         subEngine.cancel();
         this.taskRegistry.update(task.id, { status: "timeout", completedAt: Date.now(), error: "Task timed out" });
+        this.metrics.recordTaskTimedOut();
         subEngine.destroy();
         this.engines.delete(subSessionKey);
       }, opts.timeoutMs);
@@ -942,10 +983,12 @@ export class GatewayServer {
       subEngine.sendMessage(opts.prompt).then((result) => {
         clearTimeout(timeout);
         this.taskRegistry.update(task.id, { status: "completed", result, completedAt: Date.now() });
+        this.metrics.recordTaskCompleted();
         subEngine.destroy();
         this.engines.delete(subSessionKey);
       }).catch((err) => {
         clearTimeout(timeout);
+        this.metrics.recordTaskFailed();
         this.taskRegistry.update(task.id, {
           status: "failed",
           error: err instanceof Error ? err.message : String(err),
@@ -1052,6 +1095,15 @@ export class GatewayServer {
 
     for (const [engineEvent, wireEvent] of Object.entries(eventMap)) {
       const listener = (payload: unknown) => {
+        // Track token usage in metrics
+        if (engineEvent === "usage") {
+          const usage = payload as { promptTokens?: number; outputTokens?: number };
+          this.metrics.recordTokens(usage.promptTokens || 0, usage.outputTokens || 0);
+        }
+        if (engineEvent === "error") {
+          const err = payload as { message?: string };
+          this.metrics.recordError(err.message || "unknown error");
+        }
         this.sendEvent(client, wireEvent, payload);
       };
       engine.on(engineEvent, listener);

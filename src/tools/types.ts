@@ -86,6 +86,8 @@ export const AUTO_TIER_TRIGGERS: Record<string, string[]> = {
   pip_install: ["pip", "python package", "pip install"],
   install_tool: ["install", "winget", "choco", "brew", "apt"],
   generate_file: ["generate", "pdf", "create file", "export"],
+  spawn_task: ["background", "parallel", "sub-agent", "delegate", "spawn", "task"],
+  project_context: ["project", "structure", "codebase", "what files", "where is", "tech stack"],
 };
 
 /** Core tools available at all tiers */
@@ -100,4 +102,6 @@ export const CORE_TOOL_NAMES = [
   "git",
   "web_search",
   "web_fetch",
+  "spawn_task",
+  "project_context",
 ];

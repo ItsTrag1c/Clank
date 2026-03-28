@@ -1,4 +1,5 @@
 export { GatewayServer } from "./server.js";
+export { MetricsCollector, type MetricsSnapshot } from "./metrics.js";
 export {
   type Frame,
   type ConnectParams,

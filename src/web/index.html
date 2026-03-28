@@ -81,6 +81,15 @@
     .log-warn { color: var(--yellow); }
     .log-error { color: var(--red); }
 
+    /* === Health panel === */
+    .health-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+    .health-card .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .health-card .value { font-size: 22px; font-weight: 700; }
+    .health-card .sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+    .alert-item { padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
+    .alert-item.warning { background: rgba(210,153,34,0.1); border: 1px solid var(--yellow); color: var(--yellow); }
+    .alert-item.critical { background: rgba(248,81,73,0.1); border: 1px solid var(--red); color: var(--red); }
+
     @media (max-width: 768px) {
       #sidebar { width: 60px; } #sidebar nav button span { display: none; } #sidebar .logo { font-size: 14px; padding: 12px; }
     }
@@ -99,6 +108,7 @@
     <button data-panel="cron">⏰ <span>Cron Jobs</span></button>
     <button data-panel="logs">📜 <span>Logs</span></button>
     <button data-panel="channels">📡 <span>Channels</span></button>
+    <button data-panel="health">🩺 <span>Health</span></button>
   </nav>
   <div class="status-bar">
     <span class="dot" id="status-dot"></span>
@@ -174,6 +184,18 @@
   <div id="panel-channels" class="panel">
     <div class="panel-header">Channels</div>
     <div class="panel-body" id="channels-list"></div>
+  </div>
+
+  <!-- Health Panel -->
+  <div id="panel-health" class="panel">
+    <div class="panel-header">Health & Metrics
+      <div class="actions"><button onclick="loadMetrics()">Refresh</button></div>
+    </div>
+    <div class="panel-body" id="health-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px" id="health-cards"></div>
+      <div id="health-alerts" style="margin-bottom:16px"></div>
+      <div id="health-details"></div>
+    </div>
   </div>
 </div>
 
@@ -393,6 +415,75 @@
     h = h.replace(/\n/g, '<br>');
     return h;
   }
+
+  // === Health Panel ===
+  let metricsInterval = null;
+  async function loadMetrics() {
+    try {
+      const m = await rpc('metrics.get');
+      if (!m) return;
+
+      // Metric cards
+      const cards = document.getElementById('health-cards');
+      cards.innerHTML = [
+        card('Uptime', formatDuration(m.uptime), ''),
+        card('Requests', m.requests.total, `${m.requests.lastHour} last hour`),
+        card('Avg Latency', m.latency.samples > 0 ? (m.latency.avg / 1000).toFixed(1) + 's' : '—', m.latency.samples > 0 ? `p50: ${(m.latency.p50/1000).toFixed(1)}s · p95: ${(m.latency.p95/1000).toFixed(1)}s` : 'no data'),
+        card('Tokens', formatNumber(m.tokens.promptTotal + m.tokens.outputTotal), `in: ${formatNumber(m.tokens.promptTotal)} · out: ${formatNumber(m.tokens.outputTotal)}`),
+        card('Tasks', m.tasks.active + ' active', `${m.tasks.spawned} spawned · ${m.tasks.completed} done · ${m.tasks.failed} failed`),
+        card('Clients', m.connectedClients, ''),
+        card('Errors', m.errors.total, m.errors.recent.length > 0 ? 'latest: ' + esc(m.errors.recent[0]?.message || '').slice(0, 50) : 'none'),
+      ].join('');
+
+      // Alerts
+      const alerts = await rpc('metrics.alerts');
+      const alertsEl = document.getElementById('health-alerts');
+      if (alerts?.length) {
+        alertsEl.innerHTML = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">Active Alerts</div>' +
+          alerts.map(a => `<div class="alert-item ${a.level}">${esc(a.message)}</div>`).join('');
+      } else {
+        alertsEl.innerHTML = '<div class="alert-item" style="background:rgba(63,185,80,0.1);border:1px solid var(--green);color:var(--green)">All systems normal</div>';
+      }
+
+      // Detailed breakdown
+      const details = document.getElementById('health-details');
+      if (m.requests.byAgent && Object.keys(m.requests.byAgent).length > 0) {
+        details.innerHTML = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">Requests by Agent</div>' +
+          Object.entries(m.requests.byAgent).map(([id, count]) =>
+            `<div class="list-item"><div class="info"><div class="name">${esc(id)}</div></div><span class="badge">${count}</span></div>`
+          ).join('');
+      }
+    } catch {}
+  }
+
+  function card(label, value, sub) {
+    return `<div class="health-card"><div class="label">${esc(label)}</div><div class="value">${esc(String(value))}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  }
+
+  function formatDuration(secs) {
+    if (secs < 60) return secs + 's';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60);
+    return h + 'h ' + m + 'm';
+  }
+
+  function formatNumber(n) {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  // Auto-refresh metrics when health panel is visible
+  document.querySelectorAll('#sidebar nav button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.panel === 'health') {
+        loadMetrics();
+        if (!metricsInterval) metricsInterval = setInterval(loadMetrics, 10_000);
+      } else {
+        if (metricsInterval) { clearInterval(metricsInterval); metricsInterval = null; }
+      }
+    });
+  });
 
   // Input handling
   const inputEl = document.getElementById('input');

@@ -4,9 +4,9 @@
 
 | Version | Status |
 |---------|--------|
-| 1.8.x | **Current** — actively maintained |
-| 1.7.x | Security fixes only |
-| < 1.7.0 | Unsupported — upgrade recommended |
+| 1.10.x | **Current** — actively maintained |
+| 1.9.x | Security fixes only |
+| < 1.9.0 | Unsupported — upgrade recommended |
 
 ## Reporting a Vulnerability
 

@@ -185,7 +185,7 @@ export async function handleAdapterCommand(
     }
 
     case "version":
-      return "🔧 Clank v1.9.1";
+      return "🔧 Clank v1.10.0";
 
     default:
       return null; // Not a shared command — let adapter handle it
