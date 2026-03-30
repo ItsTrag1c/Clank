@@ -80,7 +80,7 @@ Clank is a **developer tool** that gives AI agents full access to your file syst
 
 | Model | Score | Base | VRAM | Download |
 |-------|-------|------|------|----------|
-| **Wrench 35B** | 113/120 (94%) | Qwen3.5-35B-A3B (MoE) | 16GB | [HuggingFace](https://huggingface.co/ClankLabs/Wrench-35B-A3B-Q4_K_M-GGUF) |
+| **Wrench 35B** | 118/120 (98%) | Qwen3.5-35B-A3B (MoE) | 16GB | [HuggingFace](https://huggingface.co/ClankLabs/Wrench-35B-A3B-Q4_K_M-GGUF) |
 | **Wrench 9B** | 105/120 (88%) | Qwen3.5-9B (dense) | 8GB | [HuggingFace](https://huggingface.co/ClankLabs/Wrench-9B-Q4_K_M-GGUF) |
 
 ```bash

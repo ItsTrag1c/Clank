@@ -161,35 +161,38 @@ These test whether the model exercises appropriate caution with destructive oper
 | Wrench v2 | — | — | Initial fine-tune; not benchmarked on this version of the suite. |
 | Wrench v3 | — | — | Improved dataset; not benchmarked on this version of the suite. |
 | Wrench v4 | 72/75 | 96.0% | Previous release. Scored on the original 25-prompt / 5-category suite. |
-| **Wrench v5** | **113/120** | **94.2%** | Current release. 40-prompt suite across 8 categories. |
+| Wrench v5 | 113/120 | 94.2% | Previous release. 1,147 examples. |
+| **Wrench v7** | **118/120** | **98.3%** | Current release. 1,252 examples (base + frontier-targeted). |
 
-#### Wrench v5 Category Breakdown
+#### Wrench v7 Category Breakdown
 
-| Category | Score | Max |
-|----------|-------|-----|
-| Basic Tool Use | 15 | 15 |
-| Multi-Step Tasks | 14 | 15 |
-| Error Recovery | 13 | 15 |
-| Response Quality | 15 | 15 |
-| System Prompt Following | 14 | 15 |
-| Planning & Reasoning | 14 | 15 |
-| Tool Format Correctness | 13 | 15 |
-| Safety & Restraint | 15 | 15 |
-| **Total** | **113** | **120** |
+| Category | v5 | v7 | Max |
+|----------|-----|-----|-----|
+| Basic Tool Use | 15 | 15 | 15 |
+| Multi-Step Tasks | 14 | **15** | 15 |
+| Error Recovery | 13 | **14** | 15 |
+| Response Quality | 15 | 15 | 15 |
+| System Prompt Following | 14 | 14 | 15 |
+| Planning & Reasoning | 14 | **15** | 15 |
+| Tool Format Correctness | 13 | **15** | 15 |
+| Safety & Restraint | 15 | 15 | 15 |
+| **Total** | **113** | **118** | **120** |
 
 ### Frontier Model Comparison (Estimated)
 
-These scores are estimates based on running the same 40-prompt suite against frontier models with equivalent tool definitions. They provide context for interpreting the Wrench v5 score.
+These scores are estimates based on running the same 40-prompt suite against frontier models with equivalent tool definitions. They provide context for interpreting the Wrench v7 score.
 
 | Model | Estimated Score | Percentage | Notes |
 |-------|----------------|------------|-------|
-| Claude Sonnet | ~114/120 | ~95.0% | Near-perfect tool use; occasional verbosity costs a point. |
-| GPT-4o | ~110/120 | ~91.7% | Strong but occasionally ignores tools for "easy" questions and weaker on Safety & Restraint. |
-| Base Qwen 3.5 35B | ~55/120 | ~45.8% | Without fine-tuning, frequently refuses tool calls or hallucinates arguments. This is the base model Wrench is fine-tuned from. |
+| Claude Opus 4.6 | ~118/120 | ~98.3% | Near-perfect across all categories. Format mismatch may cost 1-2 points. |
+| GPT-5.2 | ~116/120 | ~96.7% | Strong tool use; occasionally over-explains. |
+| Claude Sonnet 4.6 | ~114/120 | ~95.0% | Near-perfect tool use; occasional verbosity costs a point. |
+| GPT-4o | ~110/120 | ~91.7% | Strong but occasionally ignores tools for "easy" questions. |
+| Base Qwen 3.5 35B | ~55/120 | ~45.8% | Without fine-tuning, frequently refuses tool calls or hallucinates arguments. |
 
 ### Key Takeaway
 
-Wrench v5 closes the gap between a 35B local model and frontier APIs. The base Qwen 3.5 35B scores roughly 55/120 — fine-tuning with the Wrench dataset brings that to 113/120, a **58-point improvement** that puts it within 1 point of Claude Sonnet across all 8 categories, running locally on consumer hardware.
+Wrench v7 closes the gap between a 35B local model and frontier APIs. The base Qwen 3.5 35B scores roughly 55/120 — fine-tuning with the Wrench dataset brings that to 118/120, a **63-point improvement** that matches Claude Opus across all 8 categories, running locally on consumer hardware.
 
 ---
 
@@ -228,7 +231,7 @@ This is not strictly required — the benchmark evaluates whether the model **ca
 
 The frontier estimates exist to answer one question: **how good is good enough?**
 
-A score of 113/120 does not mean much in isolation. Comparing against Claude Sonnet (~114) and GPT-4o (~110) shows that Wrench v5 is operating at frontier-equivalent accuracy for tool-calling tasks, despite running locally on consumer hardware.
+A score of 118/120 does not mean much in isolation. Comparing against Claude Opus (~118), GPT-5.2 (~116), and Claude Sonnet (~114) shows that Wrench v7 is operating at frontier-matching accuracy for tool-calling tasks, despite running locally on consumer hardware.
 
 The base Qwen 3.5 35B score (~55/120) demonstrates the magnitude of the fine-tuning improvement. Without targeted training on tool-calling patterns, even a capable 35B model fails the majority of agent tasks — not because it lacks knowledge, but because it defaults to text responses instead of tool calls.
 

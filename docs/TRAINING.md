@@ -42,7 +42,7 @@ The compact variant for machines with limited VRAM. Dense architecture means all
 
 ## Dataset
 
-**1,147 hand-crafted examples** across 15 categories:
+**1,252 hand-crafted examples** across 19 categories (1,147 base + 105 frontier-targeted):
 
 | Category | Purpose |
 |----------|---------|
@@ -115,14 +115,21 @@ Every example follows the ChatML format with system, user, and assistant turns. 
 - **Benchmark:** 72/75 (Sonnet-tier on 25-prompt suite)
 - **Notes:** Added 30 `tool-restraint` examples that explicitly demonstrate when NOT to call a tool. This fixed the hallucinated-tool problem from v3 and pushed benchmark scores to their highest point. The model now reliably uses tools when appropriate and declines to when they aren't available.
 
-### v5 — Expanded Benchmark (Current — 35B)
+### v5 — Expanded Benchmark
 - **Examples:** 1,147
 - **Epochs:** 2
-- **Final loss:** 0.1452
+- **Final loss:** 0.1742
 - **Benchmark:** 113/120 (Sonnet-tier on 40-prompt suite across 8 categories)
-- **Notes:** Expanded benchmark from 25 prompts / 5 categories to 40 prompts / 8 categories, adding Planning & Reasoning, Tool Format Correctness, and Safety & Restraint. Added 34 new training examples targeting the new categories. Category scores: Basic Tool Use 15/15, Multi-Step Tasks 14/15, Error Recovery 13/15, Response Quality 15/15, System Prompt Following 14/15, Planning & Reasoning 14/15, Tool Format Correctness 13/15, Safety & Restraint 15/15.
+- **Notes:** Expanded benchmark from 25 prompts / 5 categories to 40 prompts / 8 categories. Category scores: Basic Tool Use 15/15, Multi-Step Tasks 14/15, Error Recovery 13/15, Response Quality 15/15, System Prompt Following 14/15, Planning & Reasoning 14/15, Tool Format Correctness 13/15, Safety & Restraint 15/15.
 
-### Wrench 9B v1 (Current)
+### v7 — Frontier Training Data (Current — 35B)
+- **Examples:** 1,252 (1,147 base + 105 frontier-targeted)
+- **Epochs:** 2
+- **Final loss:** 0.1592
+- **Benchmark:** 118/120 (matches Claude Opus 4.6, above GPT-5.2)
+- **Notes:** Added 105 new training examples across 4 frontier-gap categories: uncertainty calibration (25), constraint following (25), strategy revision (20), long-context multi-turn (35, avg 21 messages each). The 5-point jump from 113 to 118 came from targeting specific behavioral gaps between local and frontier models rather than adding more of the same data. Category scores: Basic Tool Use 15/15, Multi-Step Tasks 15/15, Error Recovery 14/15, Response Quality 15/15, System Prompt Following 14/15, Planning & Reasoning 15/15, Tool Format Correctness 15/15, Safety & Restraint 15/15.
+
+### Wrench 9B v3 (Current)
 - **Base model:** Qwen3.5-9B
 - **Examples:** 1,251
 - **Epochs:** 2
