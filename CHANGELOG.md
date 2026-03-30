@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.11.0] — 2026-03-30
+
+### Added
+- **Self-verification loop** — optional post-completion pass where the agent reviews its own output against the original request. When gaps are found, the agent automatically revises. Enable with `behavior.selfVerify: true` in config. Only runs on main agents (not sub-agents) to avoid recursive verification.
+- **`search_docs` tool** — RAG-style documentation search. Scans workspace markdown, code, and config files using TF-IDF ranking to find relevant context. Supports `scope` parameter: `"project"` (full workspace), `"docs"` (README/docs/ only), or `"all"` (default). Added to core tier and auto-tier triggers.
+- **25 tools total** — `search_docs` brings the tool count from 24 to 25.
+
+### Changed
+- **System prompt** — updated to mention `search_docs` tool with usage guidance (rule 7). Rules renumbered.
+- **Config schema** — new `behavior` section with `selfVerify` boolean (default: `false`).
+
+---
+
 ## [1.10.0] — 2026-03-28
 
 ### Added

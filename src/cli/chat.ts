@@ -143,6 +143,7 @@ export async function runChat(opts: {
     provider: resolved,
     autoApprove: config.tools.autoApprove,
     systemPrompt,
+    selfVerify: config.behavior?.selfVerify ?? false,
   });
 
   // Load session
@@ -210,7 +211,7 @@ export async function runChat(opts: {
   console.log(cyan("  / __|| | __ _  _ _ | |__"));
   console.log(cyan(" | (__ | |/ _` || ' \\| / /"));
   console.log(cyan("  \\___||_|\\__,_||_||_|_\\_\\"));
-  console.log(dim(`  v1.10.0 | ${resolved.modelId} | ${identity.toolTier} tier`));
+  console.log(dim(`  v1.11.0 | ${resolved.modelId} | ${identity.toolTier} tier`));
   console.log(dim("  Type your message. Press Ctrl+C to exit.\n"));
 
   // Interactive readline loop

@@ -13,6 +13,7 @@ export { bashTool } from "./bash.js";
 export { gitTool } from "./git.js";
 export { webSearchTool } from "./web-search.js";
 export { webFetchTool } from "./web-fetch.js";
+export { searchDocsTool } from "./search-docs.js";
 
 import { ToolRegistry } from "./registry.js";
 import { readFileTool } from "./read-file.js";
@@ -25,6 +26,7 @@ import { bashTool } from "./bash.js";
 import { gitTool } from "./git.js";
 import { webSearchTool } from "./web-search.js";
 import { webFetchTool } from "./web-fetch.js";
+import { searchDocsTool } from "./search-docs.js";
 import { registerSelfConfigTools } from "./self-config/index.js";
 
 // Self-config tools
@@ -45,6 +47,7 @@ export function createCoreRegistry(): ToolRegistry {
   registry.register(gitTool);
   registry.register(webSearchTool);
   registry.register(webFetchTool);
+  registry.register(searchDocsTool);
   return registry;
 }
 

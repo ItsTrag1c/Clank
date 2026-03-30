@@ -89,6 +89,8 @@ export class AgentEngine extends EventEmitter {
   private spawnDepth: number = 0;
   /** Maximum allowed spawn depth */
   private maxSpawnDepth: number = 1;
+  /** Whether to run a self-verification pass after the agent finishes */
+  private selfVerify: boolean = false;
 
   constructor(opts: {
     identity: AgentIdentity;
@@ -104,6 +106,7 @@ export class AgentEngine extends EventEmitter {
     sessionKey?: string;
     spawnDepth?: number;
     maxSpawnDepth?: number;
+    selfVerify?: boolean;
   }) {
     super();
     // Engine is reused across messages — each message adds/removes listeners
@@ -122,6 +125,7 @@ export class AgentEngine extends EventEmitter {
     if (opts.sessionKey) this.sessionKey = opts.sessionKey;
     if (opts.spawnDepth !== undefined) this.spawnDepth = opts.spawnDepth;
     if (opts.maxSpawnDepth !== undefined) this.maxSpawnDepth = opts.maxSpawnDepth;
+    if (opts.selfVerify !== undefined) this.selfVerify = opts.selfVerify;
 
     this.contextEngine = new ContextEngine({
       contextWindow: opts.provider.provider.contextWindow(),
@@ -518,6 +522,62 @@ export class AgentEngine extends EventEmitter {
       if (iterationCount >= MAX_ITERATIONS) {
         this.emit("error", { message: "Max iterations reached", recoverable: true });
       }
+
+      // === SELF-VERIFICATION PASS ===
+      // After the agent finishes, optionally verify the response against the
+      // original request. If the verifier finds gaps, inject the feedback and
+      // let the agent continue for one more pass. Only runs on main agents
+      // (not sub-agents) to avoid recursive verification.
+      if (
+        this.selfVerify &&
+        this.spawnDepth === 0 &&
+        fullResponse &&
+        !signal.aborted &&
+        iterationCount < MAX_ITERATIONS
+      ) {
+        const verifyResult = await this.runVerification(text, fullResponse, signal);
+        if (verifyResult.needsRevision && verifyResult.feedback) {
+          // Inject verifier feedback as a system-level message
+          this.contextEngine.ingest({
+            role: "user",
+            content: `[Self-Verification] Your response was reviewed and needs revision:\n\n${verifyResult.feedback}\n\nPlease address the gaps above. Do not repeat work that was already correct.`,
+          });
+
+          // Run one more pass through the ReAct loop
+          let revisionText = "";
+          this.emit("response-start");
+
+          try {
+            const toolDefs = this.toolRegistry.getDefinitions({
+              tier: this.identity.toolTier,
+              userMessage: text,
+              allowlist: this.identity.tools?.allow,
+              denylist: this.identity.tools?.deny,
+            });
+
+            for await (const event of activeProvider.stream(
+              this.contextEngine.getMessages(),
+              this.systemPrompt,
+              toolDefs,
+              signal,
+            )) {
+              if (event.type === "text") {
+                revisionText += event.content;
+                this.emit("token", { content: event.content });
+              }
+            }
+
+            if (revisionText) {
+              fullResponse = revisionText;
+              this.contextEngine.ingest({ role: "assistant", content: revisionText });
+            }
+          } catch {
+            // Verification revision failed — keep original response
+          }
+
+          this.emit("response-end", { text: fullResponse });
+        }
+      }
     } catch (err: unknown) {
       if (signal.aborted) {
         return "";
@@ -564,6 +624,65 @@ export class AgentEngine extends EventEmitter {
         },
       });
     });
+  }
+
+  /**
+   * Run self-verification: ask the model to review its own response.
+   *
+   * The verifier checks: did the response actually address the request?
+   * Are there missing steps, incorrect assumptions, or incomplete answers?
+   * Returns structured feedback if revision is needed.
+   */
+  private async runVerification(
+    originalRequest: string,
+    response: string,
+    signal: AbortSignal,
+  ): Promise<{ needsRevision: boolean; feedback?: string }> {
+    if (!this.resolvedProvider) return { needsRevision: false };
+
+    const verifyPrompt = [
+      "Review this agent response against the original request.",
+      "Check for: missing steps, incorrect assumptions, incomplete answers,",
+      "files that should have been read but weren't, tests that should have been run.",
+      "",
+      "ORIGINAL REQUEST:",
+      originalRequest,
+      "",
+      "AGENT RESPONSE:",
+      response.slice(0, 3000), // Cap to avoid context overflow
+      "",
+      "If the response fully addresses the request, reply with exactly: PASS",
+      "If there are gaps, reply with: NEEDS_REVISION followed by a brief list of what's missing.",
+      "Be concise. Only flag genuine gaps, not style preferences.",
+    ].join("\n");
+
+    try {
+      let verifyOutput = "";
+      for await (const event of this.resolvedProvider.provider.stream(
+        [{ role: "user", content: verifyPrompt }],
+        "You are a response verifier. Be strict but fair. Only flag real gaps.",
+        [],
+        signal,
+      )) {
+        if (event.type === "text") verifyOutput += event.content;
+      }
+
+      const trimmed = verifyOutput.trim();
+      if (trimmed.startsWith("PASS") || trimmed.length < 10) {
+        return { needsRevision: false };
+      }
+      if (trimmed.startsWith("NEEDS_REVISION")) {
+        return {
+          needsRevision: true,
+          feedback: trimmed.replace(/^NEEDS_REVISION\s*/i, "").trim(),
+        };
+      }
+      // Ambiguous output — don't force a revision
+      return { needsRevision: false };
+    } catch {
+      // Verification failed — skip it, keep original response
+      return { needsRevision: false };
+    }
   }
 
   /** Get the context engine (for direct access if needed) */

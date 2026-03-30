@@ -88,6 +88,7 @@ export const AUTO_TIER_TRIGGERS: Record<string, string[]> = {
   generate_file: ["generate", "pdf", "create file", "export"],
   spawn_task: ["background", "parallel", "sub-agent", "delegate", "spawn", "task"],
   project_context: ["project", "structure", "codebase", "what files", "where is", "tech stack"],
+  search_docs: ["docs", "documentation", "readme", "how does", "how to", "architecture", "guide", "reference"],
 };
 
 /** Core tools available at all tiers */
@@ -104,4 +105,5 @@ export const CORE_TOOL_NAMES = [
   "web_fetch",
   "spawn_task",
   "project_context",
+  "search_docs",
 ];

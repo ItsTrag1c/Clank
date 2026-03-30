@@ -418,7 +418,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.10.0",
+        version: "1.11.0",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -563,7 +563,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.10.0",
+      version: "1.11.0",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -1062,6 +1062,7 @@ export class GatewayServer {
       sessionKey,
       spawnDepth: currentDepth,
       maxSpawnDepth,
+      selfVerify: this.config.behavior?.selfVerify ?? false,
     });
 
     await engine.loadSession(sessionKey, channel);

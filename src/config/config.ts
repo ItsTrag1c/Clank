@@ -103,6 +103,12 @@ export interface ClankConfig {
     confirmExternal: boolean;
   };
 
+  /** Agent behavior settings */
+  behavior: {
+    /** Self-verification: after the agent finishes, it reviews its own output */
+    selfVerify?: boolean;
+  };
+
   /** Third-party API integrations */
   integrations: {
     elevenlabs?: {
@@ -178,6 +184,9 @@ export function defaultConfig(): ClankConfig {
     },
     safety: {
       confirmExternal: true,
+    },
+    behavior: {
+      selfVerify: false,
     },
     integrations: {},
   };
