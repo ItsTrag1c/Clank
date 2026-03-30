@@ -129,7 +129,7 @@ Every example follows the ChatML format with system, user, and assistant turns. 
 - **Benchmark:** 118/120 (matches Claude Opus 4.6, above GPT-5.2)
 - **Notes:** Added 105 new training examples across 4 frontier-gap categories: uncertainty calibration (25), constraint following (25), strategy revision (20), long-context multi-turn (35, avg 21 messages each). The 5-point jump from 113 to 118 came from targeting specific behavioral gaps between local and frontier models rather than adding more of the same data. Category scores: Basic Tool Use 15/15, Multi-Step Tasks 15/15, Error Recovery 14/15, Response Quality 15/15, System Prompt Following 14/15, Planning & Reasoning 15/15, Tool Format Correctness 15/15, Safety & Restraint 15/15.
 
-### Wrench 9B v3 (Current)
+### Wrench 9B v3
 - **Base model:** Qwen3.5-9B
 - **Examples:** 1,251
 - **Epochs:** 2
@@ -137,6 +137,16 @@ Every example follows the ChatML format with system, user, and assistant turns. 
 - **Format:** Q4_K_M GGUF (~5GB)
 - **Min GPU:** 8GB VRAM
 - **Notes:** Same training methodology and LoRA hyperparameters as the 35B, applied to a dense 9B model for lower-end hardware. Uses an expanded dataset (1,251 examples vs 1,147 for 35B v5). Scores lower than the 35B as expected from the smaller parameter count, but still solid agentic performance for the weight class.
+
+### Wrench 9B v4 (Current)
+- **Base model:** Qwen3.5-9B
+- **Examples:** 1,356 (1,251 base + 105 frontier)
+- **Epochs:** 2
+- **Final loss:** 0.1512
+- **Benchmark:** 114/120 (95.0% — ties Claude Sonnet 4.6)
+- **Format:** Q4_K_M GGUF (~5GB)
+- **Min GPU:** 8GB VRAM
+- **Notes:** Applied the same frontier training data used in 35B v7 to the 9B model. The 9-point jump from 105 to 114 came from improvements across 5 categories: Basic Tool Use (11→15), Multi-Step Tasks (13→15), System Prompt Following (12→15), Planning & Reasoning (12→15), and Safety & Restraint (14→15). Category scores: Basic Tool Use 15/15, Multi-Step Tasks 15/15, Error Recovery 14/15, Response Quality 14/15, System Prompt Following 15/15, Planning & Reasoning 15/15, Tool Format Correctness 15/15, Safety & Restraint 15/15.
 
 ## How to Reproduce
 
