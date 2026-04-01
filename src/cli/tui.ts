@@ -100,13 +100,17 @@ export async function runTui(opts: {
     // Send connect handshake
     ws.send(JSON.stringify({
       type: "connect",
-      params: { auth: { token }, mode: "tui", version: "1.11.1" },
+      params: { auth: { token }, mode: "tui", version: "1.11.2" },
     }));
   });
 
   ws.on("message", (data) => {
-    const frame = JSON.parse(data.toString());
-    handleFrame(state, frame);
+    try {
+      const frame = JSON.parse(data.toString());
+      handleFrame(state, frame);
+    } catch {
+      // Malformed frame — ignore rather than crash the TUI
+    }
   });
 
   ws.on("close", () => {

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.11.2] — 2026-04-01
+
+### Improved
+- **Config parse errors** — malformed `config.json5` now shows the actual parse error and file path instead of silently falling back to defaults.
+- **Setup validation** — empty Telegram/Discord bot tokens are caught during setup instead of saving `enabled: true` with no token. Port input validates range (1–65535) and checks if the port is already in use. Conflicting `--quick` and `--advanced` flags now warn.
+- **Post-setup health check** — setup now tests model connectivity after saving config and suggests `clank models test` if unreachable.
+- **Adapter startup summary** — gateway prints a clear summary of which channel adapters started and which failed (with reason).
+- **Actionable error messages** — provider "API key required" errors now include the command to fix them (`clank models add` or `clank setup`). The final fallback error gives diagnostic bullet points.
+- **Session corruption warnings** — corrupt session index or message files log a warning instead of silently resetting.
+- **TUI WebSocket safety** — malformed WebSocket frames no longer crash the TUI.
+- **Model config guard** — missing `model.primary` in config gives a clear error instead of "Unknown provider: undefined".
+- **CLI unknown commands** — unknown subcommands now show suggestions and a help hint instead of raw Commander output.
+
+---
+
 ## [1.11.1] — 2026-03-31
 
 ### Changed

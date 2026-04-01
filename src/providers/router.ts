@@ -74,7 +74,7 @@ export function createProvider(
 
     case "anthropic": {
       if (!config.anthropic?.apiKey) {
-        throw new Error(`Anthropic API key required for model ${modelId}`);
+        throw new Error(`Anthropic API key required for model ${modelId}. Run 'clank models add' to configure it.`);
       }
       const p = new AnthropicProvider({
         apiKey: config.anthropic.apiKey,
@@ -86,7 +86,7 @@ export function createProvider(
 
     case "openai": {
       if (!config.openai?.apiKey) {
-        throw new Error(`OpenAI API key required for model ${modelId}`);
+        throw new Error(`OpenAI API key required for model ${modelId}. Run 'clank models add' to configure it.`);
       }
       const p = new OpenAIProvider({
         apiKey: config.openai.apiKey,
@@ -99,7 +99,7 @@ export function createProvider(
 
     case "google": {
       if (!config.google?.apiKey) {
-        throw new Error(`Google API key required for model ${modelId}`);
+        throw new Error(`Google API key required for model ${modelId}. Run 'clank models add' to configure it.`);
       }
       const p = new GoogleProvider({ apiKey: config.google.apiKey, model });
       return { provider: p, providerName: "google", modelId, isLocal: false };
@@ -111,7 +111,7 @@ export function createProvider(
       // Model format: openrouter/anthropic/claude-sonnet-4-6
       const orConfig = config.openrouter ?? config["openrouter"];
       if (!orConfig?.apiKey) {
-        throw new Error(`OpenRouter API key required for model ${modelId}`);
+        throw new Error(`OpenRouter API key required for model ${modelId}. Run 'clank setup' to configure it.`);
       }
       const p = new OpenAIProvider({
         apiKey: orConfig.apiKey,
@@ -146,7 +146,7 @@ export function createProvider(
       // OpenAI-compatible API at https://opencode.ai/zen
       const ocConfig = config.opencode ?? config["opencode"];
       if (!ocConfig?.apiKey) {
-        throw new Error(`OpenCode API key required for model ${modelId}`);
+        throw new Error(`OpenCode API key required for model ${modelId}. Run 'clank setup' to configure it.`);
       }
       const p = new OpenAIProvider({
         apiKey: ocConfig.apiKey,
@@ -220,8 +220,10 @@ export async function resolveWithFallback(
   }
 
   throw new Error(
-    `No available provider. Tried: ${chain.join(", ")}. ` +
-    `Check that your model server is running or API keys are configured.`,
+    `No available provider. Tried: ${chain.join(", ")}.\n` +
+    `  - If using Ollama, make sure it's running (ollama serve)\n` +
+    `  - If using a cloud provider, check your API key (clank models add)\n` +
+    `  - Run 'clank models test' to diagnose connectivity`,
   );
 }
 

@@ -76,6 +76,9 @@ export async function runSetup(opts: {
     }
 
     // Step 2: Choose Flow
+    if (opts.quick && opts.advanced) {
+      console.log(yellow("  Both --quick and --advanced specified. Using Advanced."));
+    }
     let isAdvanced = opts.advanced || false;
     if (!opts.quick && !opts.advanced) {
       console.log("");
@@ -216,7 +219,26 @@ export async function runSetup(opts: {
     console.log(dim("  Gateway settings:"));
     if (isAdvanced) {
       const port = await ask(rl, cyan(`    Port [${config.gateway.port}]: `));
-      if (port.trim()) config.gateway.port = parseInt(port, 10);
+      if (port.trim()) {
+        const parsed = parseInt(port, 10);
+        if (isNaN(parsed) || parsed < 1 || parsed > 65535) {
+          console.log(yellow("    Invalid port number — keeping default."));
+        } else {
+          // Check if port is already in use
+          const net = await import("node:net");
+          const portFree = await new Promise<boolean>((resolve) => {
+            const srv = net.createServer();
+            srv.once("error", () => resolve(false));
+            srv.once("listening", () => { srv.close(); resolve(true); });
+            srv.listen(parsed, "127.0.0.1");
+          });
+          if (portFree) {
+            config.gateway.port = parsed;
+          } else {
+            console.log(yellow(`    Port ${parsed} is already in use — keeping default (${config.gateway.port}).`));
+          }
+        }
+      }
     }
 
     // Generate auth token
@@ -256,6 +278,8 @@ export async function runSetup(opts: {
           config.channels.telegram.allowFrom = [userId.trim()];
         }
         console.log(green("    Telegram configured"));
+      } else {
+        console.log(yellow("    No token provided — Telegram not enabled."));
       }
     }
 
@@ -268,6 +292,8 @@ export async function runSetup(opts: {
       if (token.trim()) {
         config.channels.discord = { enabled: true, botToken: token.trim() };
         console.log(green("    Discord configured"));
+      } else {
+        console.log(yellow("    No token provided — Discord not enabled."));
       }
     }
 
@@ -406,7 +432,25 @@ export async function runSetup(opts: {
     await saveConfig(config);
     console.log(green("\n  Config saved to " + getConfigDir() + "/config.json5"));
 
-    // Step 11: First Chat
+    // Step 11: Verify model connectivity
+    console.log("");
+    console.log(dim("  Verifying model connectivity..."));
+    try {
+      const { resolveWithFallback } = await import("../providers/router.js");
+      const modelId = config.agents.defaults.model.primary;
+      const resolved = await resolveWithFallback(
+        modelId,
+        config.agents.defaults.model.fallbacks || [],
+        config.models.providers,
+      );
+      console.log(green(`  Model OK: ${resolved.modelId} (${resolved.isLocal ? "local" : "cloud"})`));
+    } catch {
+      console.log(yellow("  Could not reach any configured model."));
+      console.log(dim("  This is fine if your model server isn't running yet."));
+      console.log(dim("  Run 'clank models test' to check connectivity later."));
+    }
+
+    // Step 12: First Chat
     console.log("");
     console.log(bold("  Clank is ready!"));
     console.log("");

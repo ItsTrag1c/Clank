@@ -93,6 +93,10 @@ export async function runChat(opts: {
 
   // Resolve model and create provider
   const modelConfig = config.agents.defaults.model;
+  if (!modelConfig.primary) {
+    console.error(red("No model configured. Run 'clank setup' or 'clank models add' to set one up."));
+    process.exit(1);
+  }
   console.log(dim(`Connecting to ${modelConfig.primary}...`));
 
   let resolved;
@@ -211,7 +215,7 @@ export async function runChat(opts: {
   console.log(cyan("  / __|| | __ _  _ _ | |__"));
   console.log(cyan(" | (__ | |/ _` || ' \\| / /"));
   console.log(cyan("  \\___||_|\\__,_||_||_|_\\_\\"));
-  console.log(dim(`  v1.11.1 | ${resolved.modelId} | ${identity.toolTier} tier`));
+  console.log(dim(`  v1.11.2 | ${resolved.modelId} | ${identity.toolTier} tier`));
   console.log(dim("  Type your message. Press Ctrl+C to exit.\n"));
 
   // Interactive readline loop

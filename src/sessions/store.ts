@@ -55,8 +55,9 @@ export class SessionStore {
         for (const entry of entries) {
           this.index.set(entry.normalizedKey, entry);
         }
-      } catch {
-        // Corrupt index — start fresh
+      } catch (err) {
+        // Corrupt index — start fresh, but warn the user
+        console.error(`Warning: Session index was corrupt and has been reset (${this.indexPath})`);
         this.index.clear();
       }
     }
@@ -103,6 +104,7 @@ export class SessionStore {
       const raw = await readFile(path, "utf-8");
       return JSON.parse(raw) as Message[];
     } catch {
+      console.error(`Warning: Session file was corrupt, starting fresh (${path})`);
       return [];
     }
   }

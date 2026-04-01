@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Read version from package.json
-let version = "1.11.1";
+let version = "1.11.2";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8"));
   version = pkg.version;
@@ -29,7 +29,9 @@ const program = new Command();
 program
   .name("clank")
   .description("Local-first AI agent gateway")
-  .version(version, "-v, --version");
+  .version(version, "-v, --version")
+  .showSuggestionAfterError(true)
+  .showHelpAfterError("(run 'clank --help' for available commands)");
 
 // clank chat — interactive chat (connects to gateway or direct mode)
 program

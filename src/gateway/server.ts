@@ -188,13 +188,28 @@ export class GatewayServer {
       new WebAdapter(),
     ];
 
+    const results: Array<{ name: string; ok: boolean; error?: string }> = [];
     for (const adapter of adapterClasses) {
       adapter.init(this, this.config);
       try {
         await adapter.start();
         this.adapters.push(adapter);
+        results.push({ name: adapter.name, ok: true });
       } catch (err) {
-        console.error(`  ${adapter.name}: failed — ${err instanceof Error ? err.message : err}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({ name: adapter.name, ok: false, error: msg });
+      }
+    }
+
+    // Print adapter summary
+    const started = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    if (started.length > 0) {
+      console.log(`  Adapters: ${started.map((r) => r.name).join(", ")}`);
+    }
+    if (failed.length > 0) {
+      for (const f of failed) {
+        console.error(`  ${f.name}: failed — ${f.error}`);
       }
     }
   }
@@ -418,7 +433,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.11.1",
+        version: "1.11.2",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -563,7 +578,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.11.1",
+      version: "1.11.2",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,

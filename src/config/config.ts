@@ -244,7 +244,11 @@ export async function loadConfig(): Promise<ClankConfig> {
     const substituted = substituteEnvVars(parsed) as Record<string, unknown>;
     return deepMerge(defaults as unknown as Record<string, unknown>, substituted) as unknown as ClankConfig;
   } catch (err) {
-    console.error(`Warning: Failed to parse config at ${configPath}, using defaults`);
+    const detail = err instanceof SyntaxError ? err.message : String(err);
+    console.error(`\x1b[33mWarning: Config file has errors, falling back to defaults.\x1b[0m`);
+    console.error(`  Path: ${configPath}`);
+    console.error(`  Error: ${detail}`);
+    console.error(`\x1b[2m  Fix the syntax error above, or run 'clank setup' to regenerate.\x1b[0m`);
     return defaults;
   }
 }
