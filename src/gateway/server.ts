@@ -433,7 +433,7 @@ export class GatewayServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "ok",
-        version: "1.11.3",
+        version: "1.12.0",
         uptime: process.uptime(),
         clients: this.clients.size,
         agents: this.engines.size,
@@ -578,7 +578,7 @@ export class GatewayServer {
     const hello: HelloFrame = {
       type: "hello",
       protocol: PROTOCOL_VERSION,
-      version: "1.11.3",
+      version: "1.12.0",
       agents: this.config.agents.list.map((a) => ({
         id: a.id,
         name: a.name || a.id,
@@ -887,6 +887,21 @@ export class GatewayServer {
   /** Get or create an agent engine for a session */
   private async getOrCreateEngine(sessionKey: string, agentId: string, channel: string): Promise<AgentEngine> {
     let engine = this.engines.get(sessionKey);
+
+    // Hot-swap check: if the config's model has changed since this engine
+    // was created, destroy the stale engine so we rebuild with the new model.
+    // This makes /models set and manage_model take effect on the next message.
+    if (engine) {
+      const agentCfg = this.config.agents.list.find((a) => a.id === agentId);
+      const liveModel = (agentCfg?.model || this.config.agents.defaults.model).primary;
+      if (engine.identity.model.primary !== liveModel) {
+        console.log(`  Model changed: ${engine.identity.model.primary} → ${liveModel} — rebuilding engine`);
+        engine.destroy();
+        this.engines.delete(sessionKey);
+        engine = undefined;
+      }
+    }
+
     if (engine) return engine;
 
     // Find agent config or use defaults

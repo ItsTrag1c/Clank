@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.12.0] — 2026-04-04
+
+### Added
+- **Hot-swappable models** — switching the default model now takes effect on the next message without restarting the harness. The engine detects model config changes and automatically rebuilds with the new provider and system prompt.
+- **`/models` command** — new slash command available on every interface (CLI, Telegram, Discord, Signal, Web). Lists all available models from configured providers and local servers (Ollama, LM Studio, llama.cpp, vLLM). Switch models inline with `/models set <provider/model>`.
+
+### Fixed
+- **Stale model identity** — after switching models, the agent's system prompt and `/status` now correctly report the active model instead of the one from session start.
+
+---
+
 ## [1.11.3] — 2026-04-04
 
 ### Improved

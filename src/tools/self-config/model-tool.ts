@@ -66,7 +66,7 @@ export const modelTool: Tool = {
       if (!args.model) return "Error: model is required";
       config.agents.defaults.model.primary = args.model as string;
       await saveConfig(config);
-      return `Default model set to ${args.model}`;
+      return `Default model switched to ${args.model}. The change takes effect on the next message.`;
     }
 
     if (action === "add-provider") {

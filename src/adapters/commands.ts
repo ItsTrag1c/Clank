@@ -8,6 +8,8 @@
 
 import type { GatewayServer } from "../gateway/server.js";
 import type { ClankConfig } from "../config/index.js";
+import { loadConfig, saveConfig } from "../config/index.js";
+import { detectLocalServers } from "../providers/index.js";
 
 export interface CommandContext {
   gateway: GatewayServer | null;
@@ -48,6 +50,8 @@ export async function handleAdapterCommand(
         "/status — Agent, model, and session info",
         "/agents — List available agents",
         "/model — Show current model",
+        "/models — List available models",
+        "/models set <id> — Switch model",
         "/tasks — Show background tasks",
         "/kill <id> — Kill a background task",
         "/killall — Kill all running tasks",
@@ -120,10 +124,61 @@ export async function handleAdapterCommand(
       return `📦 Session compacted.\n\n${preview}`;
     }
 
-    case "model": {
-      const model = ctx.config?.agents?.defaults?.model?.primary || "unknown";
+    case "model":
+    case "models": {
+      const currentModel = ctx.config?.agents?.defaults?.model?.primary || "unknown";
       const fallbacks = (ctx.config?.agents?.defaults?.model as any)?.fallbacks || [];
-      const lines = [`🤖 Current Model\n\nPrimary: ${model}`];
+
+      // /models set <id> — hot-swap the default model
+      if (command === "models" && args[0] === "set" && args[1]) {
+        const newModel = args.slice(1).join(" ");
+        try {
+          const config = await loadConfig();
+          config.agents.defaults.model.primary = newModel;
+          await saveConfig(config);
+          return `🔄 Model switched to ${newModel}\n\nThe change takes effect on your next message.`;
+        } catch (err) {
+          return `Failed to switch model: ${err instanceof Error ? err.message : err}`;
+        }
+      }
+
+      // /models — list available models from all configured providers
+      if (command === "models") {
+        const lines = [`🧠 Models\n\nCurrent: ${currentModel}`];
+        if (fallbacks.length > 0) {
+          lines.push(`Fallbacks: ${fallbacks.join(", ")}`);
+        }
+
+        // Show configured cloud providers
+        const providers = ctx.config?.models?.providers || {};
+        const cloudProviders = Object.entries(providers)
+          .filter(([, cfg]) => {
+            const c = cfg as Record<string, unknown>;
+            return c.apiKey || c.baseUrl;
+          })
+          .map(([name]) => name);
+        if (cloudProviders.length > 0) {
+          lines.push(`\nProviders: ${cloudProviders.join(", ")}`);
+        }
+
+        // Detect local servers and their models
+        try {
+          const servers = await detectLocalServers();
+          for (const s of servers) {
+            const modelList = s.models.slice(0, 8).join(", ");
+            const more = s.models.length > 8 ? ` (+${s.models.length - 8} more)` : "";
+            lines.push(`\n${s.provider} (${s.baseUrl}):\n  ${modelList}${more}`);
+          }
+        } catch {
+          // Local detection is best-effort
+        }
+
+        lines.push("\nSwitch with: /models set <provider/model>");
+        return lines.join("\n");
+      }
+
+      // /model — just show current model (original behavior)
+      const lines = [`🤖 Current Model\n\nPrimary: ${currentModel}`];
       if (fallbacks.length > 0) {
         lines.push(`Fallbacks: ${fallbacks.join(", ")}`);
       }
@@ -185,7 +240,7 @@ export async function handleAdapterCommand(
     }
 
     case "version":
-      return "🔧 Clank v1.11.3";
+      return "🔧 Clank v1.12.0";
 
     default:
       return null; // Not a shared command — let adapter handle it
